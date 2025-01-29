@@ -1,0 +1,126 @@
+-- Tabel users (Menyimpan akun pengguna)
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    role VARCHAR(10) CHECK (role IN ('admin_one', 'admin_two', 'employee')) NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Trigger untuk update timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Tabel employees (Menyimpan data karyawan)
+CREATE TABLE employees (
+    id SERIAL PRIMARY KEY,
+    user_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    nip VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    is_admin BOOLEAN DEFAULT false, -- Penanda apakah karyawan adalah admin
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_employees_updated_at
+    BEFORE UPDATE ON employees
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Tabel invitation_codes (Menyimpan kode undangan untuk karyawan)
+CREATE TABLE invitation_codes (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL, -- Admin yang membuat kode
+    used_by INT UNIQUE REFERENCES users(id) ON DELETE SET NULL, -- User yang menggunakan kode
+    is_used BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    used_at TIMESTAMP NULL,
+    expired_at TIMESTAMP NOT NULL -- Waktu kadaluarsa kode
+);
+
+-- Tabel deductions (Menyimpan jenis potongan)
+CREATE TABLE deductions (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL, -- Admin yang membuat jenis potongan
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_deductions_updated_at
+    BEFORE UPDATE ON deductions
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Tabel employee_deductions (Menyimpan potongan per karyawan)
+CREATE TABLE employee_deductions (
+    id SERIAL PRIMARY KEY,
+    employee_id INT REFERENCES employees(id) ON DELETE CASCADE,
+    deduction_id INT REFERENCES deductions(id) ON DELETE CASCADE,
+    amount NUMERIC(10,2) NOT NULL,
+    payment_status VARCHAR(15) CHECK (payment_status IN ('unpaid', 'installment', 'paid')) NOT NULL DEFAULT 'unpaid',
+    payment_type VARCHAR(10) CHECK (payment_type IN ('cash', 'transfer')) NOT NULL,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL, -- Admin yang membuat potongan
+    month INT CHECK (month BETWEEN 1 AND 12) NOT NULL,
+    year INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_employee_deductions_updated_at
+    BEFORE UPDATE ON employee_deductions
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Tabel deductions_summary (Menyimpan total potongan tiap karyawan)
+CREATE TABLE deductions_summary (
+    id SERIAL PRIMARY KEY,
+    employee_id INT REFERENCES employees(id) ON DELETE CASCADE,
+    month INT CHECK (month BETWEEN 1 AND 12) NOT NULL,
+    year INT NOT NULL,
+    total_deductions NUMERIC(10,2) NOT NULL,
+    last_updated_by INT REFERENCES users(id) ON DELETE SET NULL, -- Admin yang terakhir update
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_deductions_summary_updated_at
+    BEFORE UPDATE ON deductions_summary
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert default admin accounts
+INSERT INTO users (email, password, role) VALUES
+('admin1@gmail.com', 'admin1', 'admin_one'),
+('admin2@gmail.com', 'admin2', 'admin_two');
+
+-- Insert corresponding employee records for admins
+INSERT INTO employees (user_id, nip, name, is_admin)
+SELECT 
+    u.id,
+    CASE 
+        WHEN u.role = 'admin_one' THEN 'ADM001'
+        WHEN u.role = 'admin_two' THEN 'ADM002'
+    END as nip,
+    CASE 
+        WHEN u.role = 'admin_one' THEN 'Admin One'
+        WHEN u.role = 'admin_two' THEN 'Admin Two'
+    END as name,
+    true as is_admin
+FROM users u
+WHERE u.role IN ('admin_one', 'admin_two');

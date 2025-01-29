@@ -1,13 +1,14 @@
 import reflex as rx
+from Learn.states import State, RegisterState, Registration
 
 @rx.page(route="/register")
 def register_default_icons() -> rx.Component:
-    return rx.center(  # Tambahkan center container di sini
+    return rx.center(  
         rx.card(
             rx.vstack(
                 rx.center(
                     rx.image(
-                        src="logo.png",
+                        src="/logo.png",
                         width="2.5em",
                         height="auto",
                         border_radius="25%",
@@ -25,24 +26,6 @@ def register_default_icons() -> rx.Component:
                 ),
                 rx.vstack(
                     rx.text(
-                        "Username",
-                        size="3",
-                        weight="medium",
-                        text_align="left",
-                        width="100%",
-                    ),
-                    rx.input(
-                        rx.input.slot(rx.icon("user")),
-                        placeholder="your name",
-                        type="text",
-                        size="3",
-                        width="100%",
-                    ),
-                    spacing="2",
-                    width="100%",
-                ),
-                rx.vstack(
-                    rx.text(
                         "Email address",
                         size="3",
                         weight="medium",
@@ -55,6 +38,8 @@ def register_default_icons() -> rx.Component:
                         type="email",
                         size="3",
                         width="100%",
+                        value=RegisterState.email, 
+                        on_change=RegisterState.update_email 
                     ),
                     spacing="2",
                     width="100%",
@@ -75,11 +60,40 @@ def register_default_icons() -> rx.Component:
                         type="password",
                         size="3",
                         width="100%",
+                        value=RegisterState.password, 
+                        on_change=RegisterState.update_password 
                     ),
                     spacing="2",
                     width="100%",
                 ),
-                rx.button("Sign up", size="3", width="100%"),
+                rx.vstack(
+                    rx.hstack(
+                        rx.text(
+                            "Invitation Code",
+                            size="3",
+                            weight="medium",
+                        ),
+                        justify="between",
+                        width="100%",
+                    ),
+                    rx.input(
+                        rx.input.slot(rx.icon("key-round")),
+                        placeholder="Enter invitation code",
+                        type="text",
+                        size="3",
+                        width="100%",
+                        value=RegisterState.invitation_code, 
+                        on_change=RegisterState.update_invitation_code 
+                    ),
+                    spacing="2",
+                    width="100%",
+                ),
+                rx.button(
+                    "Sign up", 
+                    size="3", 
+                    width="100%",
+                    on_click = Registration.user_registration,
+                ),
                 rx.center(
                     rx.text("Already have an account?", size="3"),
                     rx.link("Sign in", href="/", size="3"),

@@ -1,5 +1,5 @@
 import reflex as rx
-from Learn.states import State, LoginState
+from Learn.states import State, LoginState, Authentication
 
 @rx.page(route="/")
 def login_default_icons() -> rx.Component:
@@ -8,7 +8,7 @@ def login_default_icons() -> rx.Component:
             rx.vstack(
                 rx.center(
                     rx.image(
-                        src="logo.png",
+                        src="/logo.png",
                         width="2.5em",
                         height="auto",
                         border_radius="25%",
@@ -39,7 +39,7 @@ def login_default_icons() -> rx.Component:
                         size="3",
                         width="100%",
                         value=LoginState.email, 
-                        update=LoginState.update_email 
+                        on_change=LoginState.update_email 
                     ),
                     spacing="2",
                     width="100%",
@@ -66,16 +66,16 @@ def login_default_icons() -> rx.Component:
                         size="3",
                         width="100%",
                         value=LoginState.password,  
-                        update=LoginState.update_password  
+                        on_change=LoginState.update_password  
                     ),
                     spacing="2",
                     width="100%",
                 ),
                 rx.button(
-                    rx.text("Sign in"), 
+                    "Sign in", 
                     size="3", 
                     width="100%",
-                    on_click = State.void_event,
+                    on_click = Authentication.user_login,
                 ),
                 rx.center(
                     rx.text("New here?", size="3"),
