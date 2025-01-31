@@ -61,7 +61,7 @@ class Registration(RegisterState):
         
         if result is True:
             self.success_message = "Registrasi berhasil! Silakan cek email Anda untuk konfirmasi"
-            return rx.redirect("/")
+            return rx.redirect("/login")
         else:
             self.error_message = result
             return
@@ -97,9 +97,45 @@ class Authentication(LoginState):
             # we can test this by using the user thats already logged in and user will create... 
             if await is_user_authenticated(self.access_token) is True:
                 print("Valid Session")
+                return rx.redirect("/")
             else:
                 print("Session Expired")
-            return rx.redirect("/admin")  # Redirect after successful login
+                return rx.redirect("/login") 
         
         return rx.window_alert("Login failed. Please check your credentials.")
+    
+    def check_auth(self):
+        """Cek autentikasi sebelum mengakses halaman utama"""
+        if not self.user_session:
+            return rx.redirect("/login")
+        
+        try:
+            session_data = json.loads(self.user_session)
+            expires_at = datetime.fromisoformat(session_data["expires_at"])
+            if datetime.now() > expires_at:
+                return rx.redirect("/login")
+        except:
+            return rx.redirect("/")
+
+    # def check_auth_redirect(self):
+    #     """Redirect ke home hanya jika session valid"""
+    #     if not self.user_session:
+    #         return  # Biarkan tetap di halaman login
+        
+    #     try:
+    #         # Cek apakah session masih berlaku
+    #         session_data = json.loads(self.user_session)
+    #         expires_at = datetime.fromisoformat(session_data["expires_at"])
+    #         if datetime.now() <= expires_at:
+    #             return rx.redirect("/")
+    #     except:
+    #         pass  # Jika ada error, tetap di halaman login
+
+    def handle_logout(self):
+        """Handle logout"""
+        self.user_session = ""
+        self.access_token = ""
+        self.user_id = ""
+        self.user_email = ""
+        return rx.redirect("/login")
         

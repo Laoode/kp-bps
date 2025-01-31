@@ -4,6 +4,7 @@ from .components.stats_cards import stats_cards_group
 from .views.navbar import navbar
 from .views.table import main_table
 from .pages import *
+from .states import Authentication
 
 def index() -> rx.Component:
     return rx.vstack(
@@ -29,4 +30,5 @@ app.add_page(
     index,
     title="Customer Data App",
     description="A simple app to manage customer data.",
+    on_load=Authentication.check_auth
 )

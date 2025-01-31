@@ -1,7 +1,11 @@
 import reflex as rx
 from Learn.states import State, LoginState, Authentication
 
-@rx.page(route="/")
+@rx.page(
+    route="/login", 
+    title="Login Page",
+    on_load=Authentication.check_auth  # <-- Tambahkan ini
+)
 def login_default_icons() -> rx.Component:
     return rx.center(  # Tambahkan center container di sini
         rx.card(
@@ -93,5 +97,5 @@ def login_default_icons() -> rx.Component:
             width="100%",
         ),
         height="100vh",  
-        width="100%",    
+        width="100%",  
     )

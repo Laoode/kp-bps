@@ -1,5 +1,5 @@
 import reflex as rx
-
+from Learn.states import State, LoginState, Authentication
 
 def navbar():
     return rx.flex(
@@ -14,7 +14,11 @@ def navbar():
         ),
         rx.spacer(),
         rx.hstack(
-            rx.logo(),
+            rx.button(
+                "Logout",
+                on_click=Authentication.handle_logout,
+                color_scheme="red"
+            ),
             rx.color_mode.button(),
             align="center",
             spacing="3",
