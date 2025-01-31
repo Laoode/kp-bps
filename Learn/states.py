@@ -39,21 +39,38 @@ class RegisterState(State):
         self.invitation_code = code
 
 class Registration(RegisterState):
+    error_message: str = ""
+    success_message: str = ""
+    
+    async def resend_confirmation(self):
+        result = await resend_confirmation_email(self.email)
+        if "berhasil" in result:
+            self.success_message = result
+        else:
+            self.error_message = result
+    
     async def user_registration(self):
+        self.error_message = ""
+        self.success_message = ""
+        
         result = await user_registration_endpoint(
             self.email, 
             self.password,
             self.invitation_code
         )
+        
         if result is True:
+            self.success_message = "Registrasi berhasil! Silakan cek email Anda untuk konfirmasi"
             return rx.redirect("/")
-        return rx.window_alert(result)
+        else:
+            self.error_message = result
+            return
 
 class Authentication(LoginState):
     access_token: str = ""
     user_id: str = ""
     user_email: str = ""
-    session_exp: int = 0  # ✅ Ubah tipe data ke integer
+    session_exp: int = 0 
     
     user_session: str = rx.LocalStorage(
         name="user_session",
@@ -65,9 +82,8 @@ class Authentication(LoginState):
         print(f"Received auth_data: {auth_data}") 
         
         if auth_data:
-            # Ambil data dengan benar
             self.access_token, expires_in, self.user_id, self.user_email = auth_data
-            self.session_exp = expires_in  # ✅ Assign integer ke integer
+            self.session_exp = expires_in 
             
             session_data = {
                 "user_id": self.user_id,
@@ -83,7 +99,7 @@ class Authentication(LoginState):
                 print("Valid Session")
             else:
                 print("Session Expired")
-            return rx.redirect("/pages/admin")  # Redirect after successful login
+            return rx.redirect("/admin")  # Redirect after successful login
         
         return rx.window_alert("Login failed. Please check your credentials.")
         

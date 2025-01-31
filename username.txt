@@ -1,0 +1,52 @@
+async def username_registration_endpoint(user_id: str, username: str):
+    url = "https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/users"
+    
+    headers = {
+        "apikey": PUBLIC_KEY,
+        "Authorization": f"Bearer {PUBLIC_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data: dict = {
+        "id": user_id,
+        "username": username,
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url=url, headers=headers, json=data)
+    
+        return response.status_code # 201 NOT 200
+
+async def is_usernamae_taken(username: str):
+    url ="https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/users?select=*"
+    
+    headers ={
+        "apikey": PUBLIC_KEY,
+        "Authorization": f"Bearer {PUBLIC_KEY}",
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url=url, headers=headers)
+        
+        return any(username == user.get("username") for user in response.json())
+    
+    # This will  return True if the username is within the JSON object
+
+    # async with httpx.AsyncClient() as client:
+    #     response = await client.post(url=url, headers=headers, json=data)
+        
+    #     # print(response.json())
+        
+    #     if response.status_code == 400:
+    #         msg = "Email Already Taken!"
+    #         return msg
+    #     else:
+    #         if await is_usernamae_taken(username) is False:
+    #             data = response.json()
+    #             await username_registration_endpoint(data["user"]["id"], username)
+                
+    #             return True
+    #         else:
+    #             msg = "Username Already Taken!"
+    #             return msg
+        

@@ -1,3 +1,4 @@
+# Learn\api.py:
 import jwt
 import httpx
 from datetime import datetime, timedelta
@@ -41,45 +42,8 @@ async def user_login_endpoint(email:str, password: str):
         
         return access_token, expires_in, user_id, user_email
     
-    
-
 
 # second API endpoint: user registration
-
-async def username_registration_endpoint(user_id: str, username: str):
-    url = "https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/users"
-    
-    headers = {
-        "apikey": PUBLIC_KEY,
-        "Authorization": f"Bearer {PUBLIC_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    data: dict = {
-        "id": user_id,
-        "username": username,
-    }
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url=url, headers=headers, json=data)
-    
-        return response.status_code # 201 NOT 200
-
-async def is_usernamae_taken(username: str):
-    url ="https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/users?select=*"
-    
-    headers ={
-        "apikey": PUBLIC_KEY,
-        "Authorization": f"Bearer {PUBLIC_KEY}",
-    }
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url=url, headers=headers)
-        
-        return any(username == user.get("username") for user in response.json())
-    
-    # This will  return True if the username is within the JSON object
-
 
 async def is_invitation_code_valid(code: str):
     url = f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/invitation_codes?code=eq.{code}&select=*"
@@ -114,7 +78,7 @@ async def mark_code_used(code: str, user_id: str):
     
     data = {
         "is_used": True,
-        "used_by": user_id,
+        "used_by": str(user_id),
         "used_at": datetime.now().isoformat()
     }
     
@@ -122,81 +86,104 @@ async def mark_code_used(code: str, user_id: str):
         await client.patch(url=url, headers=headers, json=data)
 
 
+async def resend_confirmation_email(email: str):
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://acsyvbepkaxpmeupvfxl.supabase.co/auth/v1/recover",
+                headers={
+                    "apikey": PUBLIC_KEY,
+                    "Content-Type": "application/json"
+                },
+                json={"email": email}
+            )
+            
+            if response.status_code == 200:
+                return "Email konfirmasi telah dikirim ulang! Cek inbox Anda."
+            return "Gagal mengirim ulang email konfirmasi"
+            
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-async def user_registration_endpoint(
-    username: str,
+async def user_registration_endpoint(   
     email: str,
     password: str,
     invitation_code: str,
 ):
-    # Validasi invitation code
-    if not await is_invitation_code_valid(invitation_code):
-        return "Invalid or expired invitation code!"
+    try:
+        # Validasi dasar sebelum request
+        if len(password) < 6:
+            return "Password harus minimal 6 karakter"
+        # Validasi invitation code
+        if not await is_invitation_code_valid(invitation_code):
+            return "Invalid or expired invitation code!"
 
-    url = "https://acsyvbepkaxpmeupvfxl.supabase.co/auth/v1/signup"
-    
-    #headers & data
-    headers = {
-        "apikey": PUBLIC_KEY,
-        "Content-Type": "application/json",
-    }
-    # data = {
-    #     "email": email,
-    #     "password": password,
-    # }
-    data = {
-        "email": email,
-        "password": password,
-        "options": {
-            "data": {
-                "role": "employee"  # Set role otomatis
+        url = "https://acsyvbepkaxpmeupvfxl.supabase.co/auth/v1/signup"
+        
+        #headers & data
+        headers = {
+            "apikey": PUBLIC_KEY,
+            "Content-Type": "application/json",
+        }
+        data = {
+            "email": email,
+            "password": password,
+            "options": {
+                "data": {
+                    "role": "employee"  # Set role otomatis
+                }
             }
         }
-    }
-    try:
+        
         async with httpx.AsyncClient() as client:
             # Registrasi user
             response = await client.post(url=url, headers=headers, json=data)
             
-            if response.status_code != 200:
-                return "Registration failed"
-            
+            if response.status_code not in [200, 201]:
+                return f"Registration failed. Status: {response.status_code}, Error: {response.text}"
+                        
             user_data = response.json()
             user_id = user_data['user']['id']
+            
+            # Update role berdasarkan kode undangan
+            await client.patch(
+                url=f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/profiles?id=eq.{user_id}",
+                headers=headers,
+                json={"role": "employee"}
+            )
             
             # Tandai kode digunakan
             await mark_code_used(invitation_code, user_id)
             
             return True
-            
+        
+    except httpx.HTTPStatusError as e:
+        error_messages = {
+            400: "Email sudah terdaftar atau format tidak valid",
+            401: "Autentikasi gagal",
+            422: "Data tidak valid"
+        }
+        return error_messages.get(e.response.status_code, f"Error: {str(e)}")
+    
     except Exception as e:
         return f"Error: {str(e)}"
-    # async with httpx.AsyncClient() as client:
-    #     response = await client.post(url=url, headers=headers, json=data)
-        
-    #     # print(response.json())
-        
-    #     if response.status_code == 400:
-    #         msg = "Email Already Taken!"
-    #         return msg
-    #     else:
-    #         if await is_usernamae_taken(username) is False:
-    #             data = response.json()
-    #             await username_registration_endpoint(data["user"]["id"], username)
-                
-    #             return True
-    #         else:
-    #             msg = "Username Already Taken!"
-    #             return msg
-        
+
+async def get_user_role(user_id: str):
+    url = f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/profiles?id=eq.{user_id}"
+    
+    headers = {
+        "apikey": PUBLIC_KEY,
+        "Authorization": f"Bearer {PUBLIC_KEY}",
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url=url, headers=headers)
+        return response.json()[0]['role']
 
 # endpoint to check if JWT is valid
 async def is_user_authenticated(access_token: str):
     if access_token:
-        # print("Token:", access_token)  # debug token
         result: dict = jwt.decode(jwt=access_token, options={"verify_signature": False})
-        # print("Decoded result:", result)  # debug hasil decode
-        
         result: int = result["exp"]
         
         # we check if the exp. session time has passed
@@ -208,12 +195,9 @@ async def is_user_authenticated(access_token: str):
     else:
         return False
         
-    #     return result
-    # print("No token provided")  # debug jika tidak ada token
-    # return None
 
 
-async def generate_invitation_code(expiry_days: int = 7):
+async def generate_invitation_code(role: str, expiry_days: int = 7):
     code = str(uuid.uuid4())[:8].upper()  # Generate 8 karakter
     expired_at = datetime.now() + timedelta(days=expiry_days)
     
@@ -227,7 +211,8 @@ async def generate_invitation_code(expiry_days: int = 7):
     
     data = {
         "code": code,
-        "expired_at": expired_at.isoformat()
+        "expired_at": expired_at.isoformat(),
+        "role": role
     }
     
     async with httpx.AsyncClient() as client:
