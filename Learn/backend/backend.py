@@ -1,140 +1,188 @@
 from datetime import datetime, timedelta
 from typing import Union
-
+from sqlalchemy import text
 import reflex as rx
-from sqlmodel import String, asc, cast, desc, func, or_, select
+from sqlmodel import Field, String, asc, cast, desc, func, or_, select
 
+# ---------------------------
+# Model-Model Baru
+# ---------------------------
 
-def _get_percentage_change(
-    value: Union[int, float], prev_value: Union[int, float]
-) -> float:
-    percentage_change = (
-        round(((value - prev_value) / prev_value) * 100, 2)
-        if prev_value != 0
-        else 0.0
-        if value == 0
-        else float("inf")
-    )
-    return percentage_change
-
-
-class Customer(rx.Model, table=True):
-    """The customer model."""
-
+class Employee(rx.Model, table=True):
+    """Model untuk data pegawai."""
     name: str
-    email: str
-    phone: str
-    address: str
-    date: str
-    payments: float
-    status: str
+    nip: str
 
 
+class Deduction(rx.Model, table=True):
+    """Model untuk jenis potongan."""
+    name: str
+
+
+class EmployeeDeduction(rx.Model, table=True):
+    """Model untuk data potongan tiap pegawai per periode."""
+    employee_id: int
+    deduction_id: int
+    amount: float = 0.0
+    payment_status: str = "unpaid"  # nilai default 'unpaid'
+    payment_type: Union[str, None] = None  # 'cash' atau 'transfer'
+    month: int
+    year: int
+    created_at: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    updated_at: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+
+# Jika dibutuhkan, model untuk _view data_ (bukan tabel) bisa dibuat secara dinamis
+# Contoh: EmployeeDeductionEntry (dipakai untuk menampung hasil join/pivot)
+class EmployeeDeductionEntry(rx.Model):
+    id: int
+    name: str
+    nip: str
+    arisan: Union[float, None] = 0.0
+    denda_arisan: Union[float, None] = 0.0
+    iuran_dw: Union[float, None] = 0.0
+    simpanan_wajib_koperasi: Union[float, None] = 0.0
+    belanja_koperasi: Union[float, None] = 0.0
+    simpanan_pokok: Union[float, None] = 0.0
+    kredit_khusus: Union[float, None] = 0.0
+    kredit_barang: Union[float, None] = 0.0
+    date: Union[str, None] = ""
+    status: Union[str, None] = ""
+    payment_type: Union[str, None] = ""
+
+
+# ---------------------------
+# State (Backend Logic)
+# ---------------------------
 class MonthValues(rx.Base):
-    """Values for a month."""
-
-    num_customers: int = 0
-    total_payments: float = 0.0
-    num_delivers: int = 0
+    """Nilai-nilai agregat untuk satu bulan."""
+    num_entries: int = 0
+    total_payments: float = 0.0  # jika diperlukan, misalnya total dari salah satu kolom
 
 
 class State(rx.State):
-    """The app state."""
-
-    users: list[Customer] = []
+    """State aplikasi yang diperbarui untuk menangani data EmployeeDeduction."""
+    # Daftar entry hasil join/pivot (untuk front end)
+    entries: list[EmployeeDeductionEntry] = []
     sort_value: str = ""
     sort_reverse: bool = False
     search_value: str = ""
-    current_user: Customer = Customer()
-    # Values for current and previous month
+    current_entry: EmployeeDeductionEntry = None  # untuk update
+
+    # Nilai agregat (bisa disesuaikan jika diperlukan)
     current_month_values: MonthValues = MonthValues()
     previous_month_values: MonthValues = MonthValues()
 
-    def load_entries(self) -> list[Customer]:
-        """Get all users from the database."""
+    def load_entries(self) -> list[EmployeeDeductionEntry]:
+        """Ambil semua data dari tabel dan gabungkan secara pivot untuk front end."""
         with rx.session() as session:
-            query = select(Customer)
+            query = text("""
+                SELECT 
+                    e.id,
+                    e.name,
+                    e.nip,
+                    MAX(CASE WHEN d.name = 'Arisan' THEN ed.amount END) AS arisan,
+                    MAX(CASE WHEN d.name = 'Denda Arisan' THEN ed.amount END) AS denda_arisan,
+                    MAX(CASE WHEN d.name = 'Iuran DW' THEN ed.amount END) AS iuran_dw,
+                    MAX(CASE WHEN d.name = 'Simpanan Wajib Koperasi' THEN ed.amount END) AS simpanan_wajib_koperasi,
+                    MAX(CASE WHEN d.name = 'Belanja Koperasi' THEN ed.amount END) AS belanja_koperasi,
+                    MAX(CASE WHEN d.name = 'Simpanan Pokok' THEN ed.amount END) AS simpanan_pokok,
+                    MAX(CASE WHEN d.name = 'Kredit Khusus' THEN ed.amount END) AS kredit_khusus,
+                    MAX(CASE WHEN d.name = 'Kredit Barang' THEN ed.amount END) AS kredit_barang,
+                    MAX(ed.updated_at) AS date,
+                    ed.payment_status AS status,
+                    ed.payment_type AS payment_type
+                FROM employees e
+                LEFT JOIN employee_deductions ed ON ed.employee_id = e.id
+                LEFT JOIN deductions d ON ed.deduction_id = d.id
+                GROUP BY e.id, ed.payment_status, ed.payment_type
+            """)
+            raw_results = session.exec(query).all()
+
+            entries = []
+            for row in raw_results:
+                try:
+                    # Gunakan properti _mapping untuk mengonversi row ke dictionary
+                    row_dict = dict(row._mapping)
+                except Exception as e:
+                    print("Error converting row to dict:", e)
+                    continue
+
+                # Pastikan entri memiliki properti 'name'
+                if not row_dict.get("name"):
+                    continue
+
+                try:
+                    # Buat objek EmployeeDeductionEntry dari dictionary
+                    entry_obj = EmployeeDeductionEntry(**row_dict)
+                    entries.append(entry_obj)
+                except Exception as e:
+                    print("Mapping error:", e)
+                    continue
+
+            # Lakukan filtering pencarian jika diperlukan
             if self.search_value:
-                search_value = f"%{str(self.search_value).lower()}%"
-                query = query.where(
-                    or_(
-                        *[
-                            getattr(Customer, field).ilike(search_value)
-                            for field in Customer.get_fields()
-                            if field not in ["id", "payments"]
-                        ],
-                        # ensures that payments is cast to a string before applying the ilike operator
-                        cast(Customer.payments, String).ilike(search_value),
-                    )
-                )
+                search_lower = self.search_value.lower()
+                entries = [
+                    r for r in entries
+                    if search_lower in r.name.lower() or search_lower in r.nip.lower()
+                ]
 
+            # Lakukan sorting jika diperlukan
             if self.sort_value:
-                sort_column = getattr(Customer, self.sort_value)
-                if self.sort_value == "payments":
-                    order = desc(sort_column) if self.sort_reverse else asc(sort_column)
-                else:
-                    order = (
-                        desc(func.lower(sort_column))
-                        if self.sort_reverse
-                        else asc(func.lower(sort_column))
-                    )
-                query = query.order_by(order)
+                entries.sort(key=lambda r: getattr(r, self.sort_value) or "", reverse=self.sort_reverse)
 
-            self.users = session.exec(query).all()
+            self.entries = entries
 
         self.get_current_month_values()
         self.get_previous_month_values()
 
     def get_current_month_values(self):
-        """Calculate current month's values."""
+        """Contoh perhitungan agregat untuk bulan ini."""
         now = datetime.now()
         start_of_month = datetime(now.year, now.month, 1)
-
-        current_month_users = [
-            user
-            for user in self.users
-            if datetime.strptime(user.date, "%Y-%m-%d %H:%M:%S") >= start_of_month
+        # Asumsikan kolom 'date' dalam format "%Y-%m-%d %H:%M:%S"
+        current_entries = [
+            entry for entry in self.entries
+            if entry.date and datetime.strptime(entry.date, "%Y-%m-%d %H:%M:%S") >= start_of_month
         ]
-        num_customers = len(current_month_users)
-        total_payments = sum(user.payments for user in current_month_users)
-        num_delivers = len(
-            [user for user in current_month_users if user.status == "Delivered"]
+        num_entries = len(current_entries)
+        total = sum(
+            (entry.arisan or 0) +
+            (entry.denda_arisan or 0) +
+            (entry.iuran_dw or 0) +
+            (entry.simpanan_wajib_koperasi or 0) +
+            (entry.belanja_koperasi or 0) +
+            (entry.simpanan_pokok or 0) +
+            (entry.kredit_khusus or 0) +
+            (entry.kredit_barang or 0)
+            for entry in current_entries
         )
-        self.current_month_values = MonthValues(
-            num_customers=num_customers,
-            total_payments=total_payments,
-            num_delivers=num_delivers,
-        )
+        self.current_month_values = MonthValues(num_entries=num_entries, total_payments=total)
 
     def get_previous_month_values(self):
-        """Calculate previous month's values."""
+        """Contoh perhitungan agregat untuk bulan sebelumnya."""
         now = datetime.now()
         first_day_of_current_month = datetime(now.year, now.month, 1)
-        last_day_of_last_month = first_day_of_current_month - timedelta(days=1)
-        start_of_last_month = datetime(
-            last_day_of_last_month.year, last_day_of_last_month.month, 1
-        )
-
-        previous_month_users = [
-            user
-            for user in self.users
-            if start_of_last_month
-            <= datetime.strptime(user.date, "%Y-%m-%d %H:%M:%S")
-            <= last_day_of_last_month
+        last_day_previous = first_day_of_current_month - timedelta(days=1)
+        start_of_previous = datetime(last_day_previous.year, last_day_previous.month, 1)
+        previous_entries = [
+            entry for entry in self.entries
+            if entry.date and start_of_previous <= datetime.strptime(entry.date, "%Y-%m-%d %H:%M:%S") <= last_day_previous
         ]
-        # We add some dummy values to simulate growth/decline. Remove them in production.
-        num_customers = len(previous_month_users) + 3
-        total_payments = sum(user.payments for user in previous_month_users) + 240
-        num_delivers = (
-            len([user for user in previous_month_users if user.status == "Delivered"])
-            + 5
+        num_entries = len(previous_entries)
+        total = sum(
+            (entry.arisan or 0) +
+            (entry.denda_arisan or 0) +
+            (entry.iuran_dw or 0) +
+            (entry.simpanan_wajib_koperasi or 0) +
+            (entry.belanja_koperasi or 0) +
+            (entry.simpanan_pokok or 0) +
+            (entry.kredit_khusus or 0) +
+            (entry.kredit_barang or 0)
+            for entry in previous_entries
         )
-
-        self.previous_month_values = MonthValues(
-            num_customers=num_customers,
-            total_payments=total_payments,
-            num_delivers=num_delivers,
-        )
+        self.previous_month_values = MonthValues(num_entries=num_entries, total_payments=total)
 
     def sort_values(self, sort_value: str):
         self.sort_value = sort_value
@@ -144,73 +192,158 @@ class State(rx.State):
         self.sort_reverse = not self.sort_reverse
         self.load_entries()
 
-    def filter_values(self, search_value):
+    def filter_values(self, search_value: str):
         self.search_value = search_value
         self.load_entries()
 
-    def get_user(self, user: Customer):
-        self.current_user = user
+    def get_entry(self, entry: EmployeeDeductionEntry):
+        self.current_entry = entry
 
-    def add_customer_to_db(self, form_data: dict):
+    def add_employee_entry(self, form_data: dict):
+        """
+        Menambahkan data entry baru.
+        form_data diharapkan memiliki kunci:
+        name, nip, arisan, denda_arisan, iuran_dw, simpanan_wajib_koperasi,
+        belanja_koperasi, simpanan_pokok, kredit_khusus, kredit_barang, status, payment_type
+        """
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_month = datetime.now().month
+        current_year = datetime.now().year
         with rx.session() as session:
-            if session.exec(
-                select(Customer).where(Customer.email == form_data.get("email"))
-            ).first():
-                return rx.window_alert("User with this email already exists")
-            self.current_user = Customer(
-                date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"), **form_data
-            )
-            session.add(self.current_user)
+            # Buat record pegawai baru
+            employee = Employee(name=form_data.get("name"), nip=form_data.get("nip"))
+            session.add(employee)
             session.commit()
-            session.refresh(self.current_user)
-        self.load_entries()
-        return rx.toast.info(
-            f"User {self.current_user.name} has been added.", position="bottom-right"
-        )
+            session.refresh(employee)
 
-    def update_customer_to_db(self, form_data: dict):
+            # Daftar deduction dan nilai dari form_data
+            deductions_values = {
+                "Arisan": form_data.get("arisan"),
+                "Denda Arisan": form_data.get("denda_arisan"),
+                "Iuran DW": form_data.get("iuran_dw"),
+                "Simpanan Wajib Koperasi": form_data.get("simpanan_wajib_koperasi"),
+                "Belanja Koperasi": form_data.get("belanja_koperasi"),
+                "Simpanan Pokok": form_data.get("simpanan_pokok"),
+                "Kredit Khusus": form_data.get("kredit_khusus"),
+                "Kredit Barang": form_data.get("kredit_barang"),
+            }
+            for deduction_name, amount in deductions_values.items():
+                # Dapatkan record deduction berdasarkan nama
+                ded = session.exec(
+                    select(Deduction).where(Deduction.name == deduction_name)
+                ).first()
+                if not ded:
+                    continue  # atau bisa tambahkan log/error jika record tidak ditemukan
+                ed = EmployeeDeduction(
+                    employee_id=employee.id,
+                    deduction_id=ded.id,
+                    amount=amount if amount is not None else 0.0,
+                    payment_status=form_data.get("status"),
+                    payment_type=form_data.get("payment_type"),
+                    month=current_month,
+                    year=current_year,
+                    created_at=now_str,
+                    updated_at=now_str,
+                )
+                session.add(ed)
+            session.commit()
+        self.load_entries()
+        return rx.toast.info(f"Entry for {employee.name} has been added.", position="bottom-right")
+
+    def update_employee_entry(self, form_data: dict):
+        """
+        Memperbarui data entry yang sudah ada.
+        form_data diharapkan memiliki kunci:
+        name, nip, arisan, denda_arisan, iuran_dw, simpanan_wajib_koperasi,
+        belanja_koperasi, simpanan_pokok, kredit_khusus, kredit_barang, status, payment_type
+        """
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_month = datetime.now().month
+        current_year = datetime.now().year
         with rx.session() as session:
-            customer = session.exec(
-                select(Customer).where(Customer.id == self.current_user.id)
+            # Perbarui data pegawai
+            employee = session.exec(
+                select(Employee).where(Employee.id == self.current_entry.id)
             ).first()
-            form_data.pop("id", None)
-            customer.set(**form_data)
-            session.add(customer)
+            employee.name = form_data.get("name")
+            employee.nip = form_data.get("nip")
+            session.add(employee)
             session.commit()
-        self.load_entries()
-        return rx.toast.info(
-            f"User {self.current_user.name} has been modified.",
-            position="bottom-right",
-        )
 
-    def delete_customer(self, id: int):
-        """Delete a customer from the database."""
-        with rx.session() as session:
-            customer = session.exec(select(Customer).where(Customer.id == id)).first()
-            session.delete(customer)
+            # Perbarui tiap record potongan untuk periode (bulan & tahun) saat ini
+            deductions_values = {
+                "Arisan": form_data.get("arisan"),
+                "Denda Arisan": form_data.get("denda_arisan"),
+                "Iuran DW": form_data.get("iuran_dw"),
+                "Simpanan Wajib Koperasi": form_data.get("simpanan_wajib_koperasi"),
+                "Belanja Koperasi": form_data.get("belanja_koperasi"),
+                "Simpanan Pokok": form_data.get("simpanan_pokok"),
+                "Kredit Khusus": form_data.get("kredit_khusus"),
+                "Kredit Barang": form_data.get("kredit_barang"),
+            }
+            for deduction_name, amount in deductions_values.items():
+                ded = session.exec(
+                    select(Deduction).where(Deduction.name == deduction_name)
+                ).first()
+                if not ded:
+                    continue
+                # Cari record EmployeeDeduction untuk pegawai ini, deduction ini, dan periode saat ini
+                ed = session.exec(
+                    select(EmployeeDeduction).where(
+                        EmployeeDeduction.employee_id == employee.id,
+                        EmployeeDeduction.deduction_id == ded.id,
+                        EmployeeDeduction.month == current_month,
+                        EmployeeDeduction.year == current_year
+                    )
+                ).first()
+                if ed:
+                    ed.amount = amount if amount is not None else 0.0
+                    ed.payment_status = form_data.get("status")
+                    ed.payment_type = form_data.get("payment_type")
+                    ed.updated_at = now_str
+                    session.add(ed)
+                else:
+                    new_ed = EmployeeDeduction(
+                        employee_id=employee.id,
+                        deduction_id=ded.id,
+                        amount=amount if amount is not None else 0.0,
+                        payment_status=form_data.get("status"),
+                        payment_type=form_data.get("payment_type"),
+                        month=current_month,
+                        year=current_year,
+                        created_at=now_str,
+                        updated_at=now_str,
+                    )
+                    session.add(new_ed)
             session.commit()
         self.load_entries()
-        return rx.toast.info(
-            f"User {customer.name} has been deleted.", position="bottom-right"
-        )
+        return rx.toast.info(f"Entry for {employee.name} has been updated.", position="bottom-right")
+
+    def delete_employee(self, id: int):
+        """Menghapus entry pegawai (cascade akan menghapus data potongan terkait)."""
+        with rx.session() as session:
+            employee = session.exec(select(Employee).where(Employee.id == id)).first()
+            session.delete(employee)
+            session.commit()
+        self.load_entries()
+        return rx.toast.info(f"Entry for {employee.name} has been deleted.", position="bottom-right")
+
+    # Contoh perhitungan persentase perubahan (bisa disesuaikan jika diperlukan)
+    def _get_percentage_change(self, value: Union[int, float], prev_value: Union[int, float]) -> float:
+        if prev_value == 0:
+            return 0.0 if value == 0 else float("inf")
+        return round(((value - prev_value) / prev_value) * 100, 2)
 
     @rx.var(cache=True)
     def payments_change(self) -> float:
-        return _get_percentage_change(
+        return self._get_percentage_change(
             self.current_month_values.total_payments,
             self.previous_month_values.total_payments,
         )
 
     @rx.var(cache=True)
-    def customers_change(self) -> float:
-        return _get_percentage_change(
-            self.current_month_values.num_customers,
-            self.previous_month_values.num_customers,
-        )
-
-    @rx.var(cache=True)
-    def delivers_change(self) -> float:
-        return _get_percentage_change(
-            self.current_month_values.num_delivers,
-            self.previous_month_values.num_delivers,
+    def entries_change(self) -> float:
+        return self._get_percentage_change(
+            self.current_month_values.num_entries,
+            self.previous_month_values.num_entries,
         )

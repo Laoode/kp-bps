@@ -9,7 +9,7 @@ from .states import Authentication
 def index() -> rx.Component:
     return rx.vstack(
         navbar(),
-        stats_cards_group(),
+        # stats_cards_group(),
         rx.box(
             main_table(),
             width="100%",

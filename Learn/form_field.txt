@@ -1,5 +1,6 @@
 import reflex as rx
 
+
 def form_field(
     label: str,
     placeholder: str,
@@ -8,9 +9,6 @@ def form_field(
     icon: str,
     default_value: str = "",
 ) -> rx.Component:
-    # Jika default_value bukan None dan bukan string, konversi ke string.
-    if default_value is not None and not isinstance(default_value, str):
-        default_value = str(default_value)
     return rx.form.field(
         rx.flex(
             rx.hstack(

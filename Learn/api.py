@@ -8,7 +8,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+PUBLIC_URL: str = os.environ["SUPABASE_URL"]
 PUBLIC_KEY: str = os.environ["SUPABASE_KEY"]
+
 
 # first API endpoint: user login...
 async def user_login_endpoint(email:str, password: str):
