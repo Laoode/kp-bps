@@ -6,6 +6,7 @@ from ..components.status_badges import status_badge
 
 
 def show_employee_deduction(entry) -> rx.Component:
+    print("Rendering entry:", entry.__dict__)
     """Tampilkan satu baris data employee_deduction dalam tabel."""
     return rx.table.row(
         rx.table.cell(entry.name),

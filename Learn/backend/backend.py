@@ -10,17 +10,20 @@ from sqlmodel import Field, String, asc, cast, desc, func, or_, select
 
 class Employee(rx.Model, table=True):
     """Model untuk data pegawai."""
+    __tablename__ = "employees"
     name: str
     nip: str
 
 
 class Deduction(rx.Model, table=True):
     """Model untuk jenis potongan."""
+    __tablename__ = "deductions"
     name: str
 
 
 class EmployeeDeduction(rx.Model, table=True):
     """Model untuk data potongan tiap pegawai per periode."""
+    __tablename__ = "employee_deductions"
     employee_id: int
     deduction_id: int
     amount: float = 0.0
@@ -73,69 +76,85 @@ class State(rx.State):
     current_month_values: MonthValues = MonthValues()
     previous_month_values: MonthValues = MonthValues()
 
-    def load_entries(self) -> list[EmployeeDeductionEntry]:
+    def load_entries(self) -> None:
         """Ambil semua data dari tabel dan gabungkan secara pivot untuk front end."""
         with rx.session() as session:
-            query = text("""
+            query = """
                 SELECT 
                     e.id,
                     e.name,
                     e.nip,
-                    MAX(CASE WHEN d.name = 'Arisan' THEN ed.amount END) AS arisan,
-                    MAX(CASE WHEN d.name = 'Denda Arisan' THEN ed.amount END) AS denda_arisan,
-                    MAX(CASE WHEN d.name = 'Iuran DW' THEN ed.amount END) AS iuran_dw,
-                    MAX(CASE WHEN d.name = 'Simpanan Wajib Koperasi' THEN ed.amount END) AS simpanan_wajib_koperasi,
-                    MAX(CASE WHEN d.name = 'Belanja Koperasi' THEN ed.amount END) AS belanja_koperasi,
-                    MAX(CASE WHEN d.name = 'Simpanan Pokok' THEN ed.amount END) AS simpanan_pokok,
-                    MAX(CASE WHEN d.name = 'Kredit Khusus' THEN ed.amount END) AS kredit_khusus,
-                    MAX(CASE WHEN d.name = 'Kredit Barang' THEN ed.amount END) AS kredit_barang,
+                    COALESCE(MAX(CASE WHEN d.name = 'Arisan' THEN ed.amount END), 0) AS arisan,
+                    COALESCE(MAX(CASE WHEN d.name = 'Denda Arisan' THEN ed.amount END), 0) AS denda_arisan,
+                    COALESCE(MAX(CASE WHEN d.name = 'Iuran DW' THEN ed.amount END), 0) AS iuran_dw,
+                    COALESCE(MAX(CASE WHEN d.name = 'Simpanan Wajib Koperasi' THEN ed.amount END), 0) AS simpanan_wajib_koperasi,
+                    COALESCE(MAX(CASE WHEN d.name = 'Belanja Koperasi' THEN ed.amount END), 0) AS belanja_koperasi,
+                    COALESCE(MAX(CASE WHEN d.name = 'Simpanan Pokok' THEN ed.amount END), 0) AS simpanan_pokok,
+                    COALESCE(MAX(CASE WHEN d.name = 'Kredit Khusus' THEN ed.amount END), 0) AS kredit_khusus,
+                    COALESCE(MAX(CASE WHEN d.name = 'Kredit Barang' THEN ed.amount END), 0) AS kredit_barang,
                     MAX(ed.updated_at) AS date,
-                    ed.payment_status AS status,
-                    ed.payment_type AS payment_type
+                    COALESCE(MAX(ed.payment_status), 'pending') AS status,
+                    MAX(ed.payment_type) AS payment_type
                 FROM employees e
-                LEFT JOIN employee_deductions ed ON ed.employee_id = e.id
+                LEFT JOIN employee_deductions ed ON ed.employee_id = e.id 
                 LEFT JOIN deductions d ON ed.deduction_id = d.id
-                GROUP BY e.id, ed.payment_status, ed.payment_type
-            """)
-            raw_results = session.exec(query).all()
+                GROUP BY e.id, e.name, e.nip
+            """
+            
+            try:
+                result = session.execute(text(query))
+                print("Query result:", result)  # Debug log
+                entries = []
+                for row in result:
+                    try:
+                        row_dict = {
+                            "id": row[0],
+                            "name": row[1],
+                            "nip": row[2],
+                            "arisan": float(row[3] or 0),
+                            "denda_arisan": float(row[4] or 0),
+                            "iuran_dw": float(row[5] or 0),
+                            "simpanan_wajib_koperasi": float(row[6] or 0),
+                            "belanja_koperasi": float(row[7] or 0),
+                            "simpanan_pokok": float(row[8] or 0),
+                            "kredit_khusus": float(row[9] or 0),
+                            "kredit_barang": float(row[10] or 0),
+                            "date": str(row[11] or ""),
+                            "status": str(row[12] or "pending"),
+                            "payment_type": str(row[13] or "")
+                        }
+                        
+                        entry = EmployeeDeductionEntry(**row_dict)
+                        entries.append(entry)
+                    except Exception as e:
+                        print(f"Error creating entry object: {e}")
+                        continue
 
-            entries = []
-            for row in raw_results:
-                try:
-                    # Gunakan properti _mapping untuk mengonversi row ke dictionary
-                    row_dict = dict(row._mapping)
-                except Exception as e:
-                    print("Error converting row to dict:", e)
-                    continue
+                # Terapkan pencarian jika ada
+                if self.search_value:
+                    search_lower = self.search_value.lower()
+                    entries = [
+                        r for r in entries
+                        if search_lower in r.name.lower() or search_lower in r.nip.lower()
+                    ]
 
-                # Pastikan entri memiliki properti 'name'
-                if not row_dict.get("name"):
-                    continue
+                # Terapkan sorting jika ada
+                if self.sort_value:
+                    entries.sort(
+                        key=lambda r: getattr(r, self.sort_value) or "",
+                        reverse=self.sort_reverse
+                    )
 
-                try:
-                    # Buat objek EmployeeDeductionEntry dari dictionary
-                    entry_obj = EmployeeDeductionEntry(**row_dict)
-                    entries.append(entry_obj)
-                except Exception as e:
-                    print("Mapping error:", e)
-                    continue
+                self.entries = entries
+                print(f"Successfully loaded {len(entries)} entries")
+                
+            except Exception as e:
+                print(f"Error in load_entries: {e}")
+                self.entries = []
 
-            # Lakukan filtering pencarian jika diperlukan
-            if self.search_value:
-                search_lower = self.search_value.lower()
-                entries = [
-                    r for r in entries
-                    if search_lower in r.name.lower() or search_lower in r.nip.lower()
-                ]
-
-            # Lakukan sorting jika diperlukan
-            if self.sort_value:
-                entries.sort(key=lambda r: getattr(r, self.sort_value) or "", reverse=self.sort_reverse)
-
-            self.entries = entries
-
-        self.get_current_month_values()
-        self.get_previous_month_values()
+            # Update nilai agregat
+            self.get_current_month_values()
+            self.get_previous_month_values()
 
     def get_current_month_values(self):
         """Contoh perhitungan agregat untuk bulan ini."""
@@ -215,7 +234,8 @@ class State(rx.State):
             session.add(employee)
             session.commit()
             session.refresh(employee)
-
+            employee_name = employee.name
+            
             # Daftar deduction dan nilai dari form_data
             deductions_values = {
                 "Arisan": form_data.get("arisan"),
@@ -248,7 +268,7 @@ class State(rx.State):
                 session.add(ed)
             session.commit()
         self.load_entries()
-        return rx.toast.info(f"Entry for {employee.name} has been added.", position="bottom-right")
+        return rx.toast.info(f"Entry for {employee_name} has been added.", position="bottom-right")
 
     def update_employee_entry(self, form_data: dict):
         """
@@ -269,6 +289,7 @@ class State(rx.State):
             employee.nip = form_data.get("nip")
             session.add(employee)
             session.commit()
+            employee_name = str(employee.name)
 
             # Perbarui tiap record potongan untuk periode (bulan & tahun) saat ini
             deductions_values = {
@@ -317,7 +338,7 @@ class State(rx.State):
                     session.add(new_ed)
             session.commit()
         self.load_entries()
-        return rx.toast.info(f"Entry for {employee.name} has been updated.", position="bottom-right")
+        return rx.toast.info(f"Entry for {employee_name} has been updated.", position="bottom-right")
 
     def delete_employee(self, id: int):
         """Menghapus entry pegawai (cascade akan menghapus data potongan terkait)."""
