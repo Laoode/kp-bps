@@ -30,5 +30,5 @@ app.add_page(
     index,
     title="Customer Data App",
     description="A simple app to manage customer data.",
-    on_load=Authentication.check_auth
+    on_load=Authentication.require_auth
 )

@@ -168,7 +168,7 @@ def register_default_icons() -> rx.Component:
                 # Login Link
                 rx.center(
                     rx.text("Already have an account?", size="3"),
-                    rx.link("Sign in", href="/", size="3"),
+                    rx.link("Sign in", href="/login", size="3"),
                     opacity="0.8",
                     spacing="2",
                     direction="row",
