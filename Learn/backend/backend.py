@@ -26,7 +26,7 @@ class EmployeeDeduction(rx.Model, table=True):
     __tablename__ = "employee_deductions"
     employee_id: int
     deduction_id: int
-    amount: float = 0.0
+    amount: int = 10000
     payment_status: str = "unpaid"  # nilai default 'unpaid'
     payment_type: Union[str, None] = None  # 'cash' atau 'transfer'
     month: int
@@ -41,17 +41,17 @@ class EmployeeDeductionEntry(rx.Model):
     id: int
     name: str
     nip: str
-    arisan: Union[float, None] = 0.0
-    denda_arisan: Union[float, None] = 0.0
-    iuran_dw: Union[float, None] = 0.0
-    simpanan_wajib_koperasi: Union[float, None] = 0.0
-    belanja_koperasi: Union[float, None] = 0.0
-    simpanan_pokok: Union[float, None] = 0.0
-    kredit_khusus: Union[float, None] = 0.0
-    kredit_barang: Union[float, None] = 0.0
-    date: Union[str, None] = ""
-    status: Union[str, None] = ""
-    payment_type: Union[str, None] = ""
+    arisan: int = 10000
+    denda_arisan: int = 10000
+    iuran_dw: int = 10000
+    simpanan_wajib_koperasi: int = 10000
+    belanja_koperasi: int = 10000
+    simpanan_pokok: int = 10000
+    kredit_khusus: int = 10000
+    kredit_barang: int = 10000
+    date: str = ""
+    status: str = ""
+    payment_type: str = ""
 
 
 # ---------------------------
@@ -60,7 +60,7 @@ class EmployeeDeductionEntry(rx.Model):
 class MonthValues(rx.Base):
     """Nilai-nilai agregat untuk satu bulan."""
     num_entries: int = 0
-    total_payments: float = 0.0  # jika diperlukan, misalnya total dari salah satu kolom
+    total_payments: int = 10000  # jika diperlukan, misalnya total dari salah satu kolom
 
 
 class State(rx.State):
@@ -71,29 +71,28 @@ class State(rx.State):
     sort_reverse: bool = False
     search_value: str = ""
     current_entry: EmployeeDeductionEntry = None  # untuk update
-
+    
     # Nilai agregat (bisa disesuaikan jika diperlukan)
     current_month_values: MonthValues = MonthValues()
     previous_month_values: MonthValues = MonthValues()
 
     def load_entries(self) -> None:
-        """Ambil semua data dari tabel dan gabungkan secara pivot untuk front end."""
         with rx.session() as session:
             query = """
                 SELECT 
                     e.id,
                     e.name,
                     e.nip,
-                    COALESCE(MAX(CASE WHEN d.name = 'Arisan' THEN ed.amount END), 0) AS arisan,
-                    COALESCE(MAX(CASE WHEN d.name = 'Denda Arisan' THEN ed.amount END), 0) AS denda_arisan,
-                    COALESCE(MAX(CASE WHEN d.name = 'Iuran DW' THEN ed.amount END), 0) AS iuran_dw,
-                    COALESCE(MAX(CASE WHEN d.name = 'Simpanan Wajib Koperasi' THEN ed.amount END), 0) AS simpanan_wajib_koperasi,
-                    COALESCE(MAX(CASE WHEN d.name = 'Belanja Koperasi' THEN ed.amount END), 0) AS belanja_koperasi,
-                    COALESCE(MAX(CASE WHEN d.name = 'Simpanan Pokok' THEN ed.amount END), 0) AS simpanan_pokok,
-                    COALESCE(MAX(CASE WHEN d.name = 'Kredit Khusus' THEN ed.amount END), 0) AS kredit_khusus,
-                    COALESCE(MAX(CASE WHEN d.name = 'Kredit Barang' THEN ed.amount END), 0) AS kredit_barang,
+                    COALESCE(MAX(CASE WHEN d.name = 'Arisan' THEN ed.amount END), 10000) AS arisan,
+                    COALESCE(MAX(CASE WHEN d.name = 'Denda Arisan' THEN ed.amount END), 10000) AS denda_arisan,
+                    COALESCE(MAX(CASE WHEN d.name = 'Iuran DW' THEN ed.amount END), 10000) AS iuran_dw,
+                    COALESCE(MAX(CASE WHEN d.name = 'Simpanan Wajib Koperasi' THEN ed.amount END), 10000) AS simpanan_wajib_koperasi,
+                    COALESCE(MAX(CASE WHEN d.name = 'Belanja Koperasi' THEN ed.amount END), 10000) AS belanja_koperasi,
+                    COALESCE(MAX(CASE WHEN d.name = 'Simpanan Pokok' THEN ed.amount END), 10000) AS simpanan_pokok,
+                    COALESCE(MAX(CASE WHEN d.name = 'Kredit Khusus' THEN ed.amount END), 10000) AS kredit_khusus,
+                    COALESCE(MAX(CASE WHEN d.name = 'Kredit Barang' THEN ed.amount END), 10000) AS kredit_barang,
                     MAX(ed.updated_at) AS date,
-                    COALESCE(MAX(ed.payment_status), 'pending') AS status,
+                    MAX(ed.payment_status) AS status,
                     MAX(ed.payment_type) AS payment_type
                 FROM employees e
                 LEFT JOIN employee_deductions ed ON ed.employee_id = e.id 
@@ -103,7 +102,6 @@ class State(rx.State):
             
             try:
                 result = session.execute(text(query))
-                print("Query result:", result)  # Debug log
                 entries = []
                 for row in result:
                     try:
@@ -111,25 +109,23 @@ class State(rx.State):
                             "id": row[0],
                             "name": row[1],
                             "nip": row[2],
-                            "arisan": float(row[3] or 0),
-                            "denda_arisan": float(row[4] or 0),
-                            "iuran_dw": float(row[5] or 0),
-                            "simpanan_wajib_koperasi": float(row[6] or 0),
-                            "belanja_koperasi": float(row[7] or 0),
-                            "simpanan_pokok": float(row[8] or 0),
-                            "kredit_khusus": float(row[9] or 0),
-                            "kredit_barang": float(row[10] or 0),
+                            "arisan": int(row[3] or 10000),
+                            "denda_arisan": int(row[4] or 10000),
+                            "iuran_dw": int(row[5] or 10000),
+                            "simpanan_wajib_koperasi": int(row[6] or 10000),
+                            "belanja_koperasi": int(row[7] or 10000),
+                            "simpanan_pokok": int(row[8] or 10000),
+                            "kredit_khusus": int(row[9] or 10000),
+                            "kredit_barang": int(row[10] or 10000),
                             "date": str(row[11] or ""),
-                            "status": str(row[12] or "pending"),
+                            "status": str(row[12] or ""),
                             "payment_type": str(row[13] or "")
                         }
-                        
                         entry = EmployeeDeductionEntry(**row_dict)
                         entries.append(entry)
                     except Exception as e:
                         print(f"Error creating entry object: {e}")
                         continue
-
                 # Terapkan pencarian jika ada
                 if self.search_value:
                     search_lower = self.search_value.lower()
@@ -151,11 +147,11 @@ class State(rx.State):
             except Exception as e:
                 print(f"Error in load_entries: {e}")
                 self.entries = []
-
+            
             # Update nilai agregat
             self.get_current_month_values()
             self.get_previous_month_values()
-
+        
     def get_current_month_values(self):
         """Contoh perhitungan agregat untuk bulan ini."""
         now = datetime.now()
@@ -202,7 +198,7 @@ class State(rx.State):
             for entry in previous_entries
         )
         self.previous_month_values = MonthValues(num_entries=num_entries, total_payments=total)
-
+                
     def sort_values(self, sort_value: str):
         self.sort_value = sort_value
         self.load_entries()
@@ -219,12 +215,6 @@ class State(rx.State):
         self.current_entry = entry
 
     def add_employee_entry(self, form_data: dict):
-        """
-        Menambahkan data entry baru.
-        form_data diharapkan memiliki kunci:
-        name, nip, arisan, denda_arisan, iuran_dw, simpanan_wajib_koperasi,
-        belanja_koperasi, simpanan_pokok, kredit_khusus, kredit_barang, status, payment_type
-        """
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         current_month = datetime.now().month
         current_year = datetime.now().year
@@ -238,14 +228,14 @@ class State(rx.State):
             
             # Daftar deduction dan nilai dari form_data
             deductions_values = {
-                "Arisan": form_data.get("arisan"),
-                "Denda Arisan": form_data.get("denda_arisan"),
-                "Iuran DW": form_data.get("iuran_dw"),
-                "Simpanan Wajib Koperasi": form_data.get("simpanan_wajib_koperasi"),
-                "Belanja Koperasi": form_data.get("belanja_koperasi"),
-                "Simpanan Pokok": form_data.get("simpanan_pokok"),
-                "Kredit Khusus": form_data.get("kredit_khusus"),
-                "Kredit Barang": form_data.get("kredit_barang"),
+                "Arisan": int(form_data.get("arisan") or 10000),
+                "Denda Arisan": int(form_data.get("denda_arisan") or 10000),
+                "Iuran DW": int(form_data.get("iuran_dw") or 10000),
+                "Simpanan Wajib Koperasi": int(form_data.get("simpanan_wajib_koperasi") or 10000),
+                "Belanja Koperasi": int(form_data.get("belanja_koperasi") or 10000),
+                "Simpanan Pokok": int(form_data.get("simpanan_pokok") or 10000),
+                "Kredit Khusus": int(form_data.get("kredit_khusus") or 10000),
+                "Kredit Barang": int(form_data.get("kredit_barang") or 10000),
             }
             for deduction_name, amount in deductions_values.items():
                 # Dapatkan record deduction berdasarkan nama
@@ -257,7 +247,7 @@ class State(rx.State):
                 ed = EmployeeDeduction(
                     employee_id=employee.id,
                     deduction_id=ded.id,
-                    amount=amount if amount is not None else 0.0,
+                    amount=amount if amount is not None else 10000,
                     payment_status=form_data.get("status"),
                     payment_type=form_data.get("payment_type"),
                     month=current_month,
@@ -293,14 +283,14 @@ class State(rx.State):
 
             # Perbarui tiap record potongan untuk periode (bulan & tahun) saat ini
             deductions_values = {
-                "Arisan": form_data.get("arisan"),
-                "Denda Arisan": form_data.get("denda_arisan"),
-                "Iuran DW": form_data.get("iuran_dw"),
-                "Simpanan Wajib Koperasi": form_data.get("simpanan_wajib_koperasi"),
-                "Belanja Koperasi": form_data.get("belanja_koperasi"),
-                "Simpanan Pokok": form_data.get("simpanan_pokok"),
-                "Kredit Khusus": form_data.get("kredit_khusus"),
-                "Kredit Barang": form_data.get("kredit_barang"),
+                "Arisan": int(form_data.get("arisan") or 10000),
+                "Denda Arisan": int(form_data.get("denda_arisan") or 10000),
+                "Iuran DW": int(form_data.get("iuran_dw") or 10000),
+                "Simpanan Wajib Koperasi": int(form_data.get("simpanan_wajib_koperasi") or 10000),
+                "Belanja Koperasi": int(form_data.get("belanja_koperasi") or 10000),
+                "Simpanan Pokok": int(form_data.get("simpanan_pokok") or 10000),
+                "Kredit Khusus": int(form_data.get("kredit_khusus") or 10000),
+                "Kredit Barang": int(form_data.get("kredit_barang") or 10000),
             }
             for deduction_name, amount in deductions_values.items():
                 ded = session.exec(
@@ -318,7 +308,7 @@ class State(rx.State):
                     )
                 ).first()
                 if ed:
-                    ed.amount = amount if amount is not None else 0.0
+                    ed.amount = amount if amount is not None else 10000
                     ed.payment_status = form_data.get("status")
                     ed.payment_type = form_data.get("payment_type")
                     ed.updated_at = now_str
@@ -327,7 +317,7 @@ class State(rx.State):
                     new_ed = EmployeeDeduction(
                         employee_id=employee.id,
                         deduction_id=ded.id,
-                        amount=amount if amount is not None else 0.0,
+                        amount=amount if amount is not None else 10000,
                         payment_status=form_data.get("status"),
                         payment_type=form_data.get("payment_type"),
                         month=current_month,
@@ -350,20 +340,20 @@ class State(rx.State):
         return rx.toast.info(f"Entry for {employee.name} has been deleted.", position="bottom-right")
 
     # Contoh perhitungan persentase perubahan (bisa disesuaikan jika diperlukan)
-    def _get_percentage_change(self, value: Union[int, float], prev_value: Union[int, float]) -> float:
+    def _get_percentage_change(self, value: Union[int, int], prev_value: Union[int, int]) -> int:
         if prev_value == 0:
-            return 0.0 if value == 0 else float("inf")
+            return 10000
         return round(((value - prev_value) / prev_value) * 100, 2)
 
     @rx.var(cache=True)
-    def payments_change(self) -> float:
+    def payments_change(self) -> int:
         return self._get_percentage_change(
             self.current_month_values.total_payments,
             self.previous_month_values.total_payments,
         )
 
     @rx.var(cache=True)
-    def entries_change(self) -> float:
+    def entries_change(self) -> int:
         return self._get_percentage_change(
             self.current_month_values.num_entries,
             self.previous_month_values.num_entries,

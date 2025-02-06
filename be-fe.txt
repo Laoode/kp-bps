@@ -1,0 +1,727 @@
+Learn\backend\backend.py:
+
+from datetime import datetime, timedelta
+from typing import Union
+from sqlalchemy import text
+import reflex as rx
+from sqlmodel import Field, String, asc, cast, desc, func, or_, select
+
+# ---------------------------
+# Model-Model Baru
+# ---------------------------
+
+class Employee(rx.Model, table=True):
+    """Model untuk data pegawai."""
+    __tablename__ = "employees"
+    name: str
+    nip: str
+
+
+class Deduction(rx.Model, table=True):
+    """Model untuk jenis potongan."""
+    __tablename__ = "deductions"
+    name: str
+
+
+class EmployeeDeduction(rx.Model, table=True):
+    """Model untuk data potongan tiap pegawai per periode."""
+    __tablename__ = "employee_deductions"
+    employee_id: int
+    deduction_id: int
+    amount: float = 0.0
+    payment_status: str = "unpaid"  # nilai default 'unpaid'
+    payment_type: Union[str, None] = None  # 'cash' atau 'transfer'
+    month: int
+    year: int
+    created_at: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    updated_at: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+
+# Jika dibutuhkan, model untuk _view data_ (bukan tabel) bisa dibuat secara dinamis
+# Contoh: EmployeeDeductionEntry (dipakai untuk menampung hasil join/pivot)
+class EmployeeDeductionEntry(rx.Model):
+    id: int
+    name: str
+    nip: str
+    arisan: Union[float, None] = 0.0
+    denda_arisan: Union[float, None] = 0.0
+    iuran_dw: Union[float, None] = 0.0
+    simpanan_wajib_koperasi: Union[float, None] = 0.0
+    belanja_koperasi: Union[float, None] = 0.0
+    simpanan_pokok: Union[float, None] = 0.0
+    kredit_khusus: Union[float, None] = 0.0
+    kredit_barang: Union[float, None] = 0.0
+    date: Union[str, None] = ""
+    status: Union[str, None] = ""
+    payment_type: Union[str, None] = ""
+
+
+# ---------------------------
+# State (Backend Logic)
+# ---------------------------
+class MonthValues(rx.Base):
+    """Nilai-nilai agregat untuk satu bulan."""
+    num_entries: int = 0
+    total_payments: float = 0.0  # jika diperlukan, misalnya total dari salah satu kolom
+
+
+class State(rx.State):
+    """State aplikasi yang diperbarui untuk menangani data EmployeeDeduction."""
+    # Daftar entry hasil join/pivot (untuk front end)
+    entries: list[EmployeeDeductionEntry] = []
+    sort_value: str = ""
+    sort_reverse: bool = False
+    search_value: str = ""
+    current_entry: EmployeeDeductionEntry = None  # untuk update
+
+    # Nilai agregat (bisa disesuaikan jika diperlukan)
+    current_month_values: MonthValues = MonthValues()
+    previous_month_values: MonthValues = MonthValues()
+
+    def load_entries(self) -> None:
+        """Ambil semua data dari tabel dan gabungkan secara pivot untuk front end."""
+        with rx.session() as session:
+            query = """
+                SELECT 
+                    e.id,
+                    e.name,
+                    e.nip,
+                    COALESCE(MAX(CASE WHEN d.name = 'Arisan' THEN ed.amount END), 0) AS arisan,
+                    COALESCE(MAX(CASE WHEN d.name = 'Denda Arisan' THEN ed.amount END), 0) AS denda_arisan,
+                    COALESCE(MAX(CASE WHEN d.name = 'Iuran DW' THEN ed.amount END), 0) AS iuran_dw,
+                    COALESCE(MAX(CASE WHEN d.name = 'Simpanan Wajib Koperasi' THEN ed.amount END), 0) AS simpanan_wajib_koperasi,
+                    COALESCE(MAX(CASE WHEN d.name = 'Belanja Koperasi' THEN ed.amount END), 0) AS belanja_koperasi,
+                    COALESCE(MAX(CASE WHEN d.name = 'Simpanan Pokok' THEN ed.amount END), 0) AS simpanan_pokok,
+                    COALESCE(MAX(CASE WHEN d.name = 'Kredit Khusus' THEN ed.amount END), 0) AS kredit_khusus,
+                    COALESCE(MAX(CASE WHEN d.name = 'Kredit Barang' THEN ed.amount END), 0) AS kredit_barang,
+                    MAX(ed.updated_at) AS date,
+                    COALESCE(MAX(ed.payment_status), 'pending') AS status,
+                    MAX(ed.payment_type) AS payment_type
+                FROM employees e
+                LEFT JOIN employee_deductions ed ON ed.employee_id = e.id 
+                LEFT JOIN deductions d ON ed.deduction_id = d.id
+                GROUP BY e.id, e.name, e.nip
+            """
+            
+            try:
+                result = session.execute(text(query))
+                print("Query result:", result)  # Debug log
+                entries = []
+                for row in result:
+                    try:
+                        row_dict = {
+                            "id": row[0],
+                            "name": row[1],
+                            "nip": row[2],
+                            "arisan": float(row[3] or 0),
+                            "denda_arisan": float(row[4] or 0),
+                            "iuran_dw": float(row[5] or 0),
+                            "simpanan_wajib_koperasi": float(row[6] or 0),
+                            "belanja_koperasi": float(row[7] or 0),
+                            "simpanan_pokok": float(row[8] or 0),
+                            "kredit_khusus": float(row[9] or 0),
+                            "kredit_barang": float(row[10] or 0),
+                            "date": str(row[11] or ""),
+                            "status": str(row[12] or "pending"),
+                            "payment_type": str(row[13] or "")
+                        }
+                        
+                        entry = EmployeeDeductionEntry(**row_dict)
+                        entries.append(entry)
+                    except Exception as e:
+                        print(f"Error creating entry object: {e}")
+                        continue
+
+                # Terapkan pencarian jika ada
+                if self.search_value:
+                    search_lower = self.search_value.lower()
+                    entries = [
+                        r for r in entries
+                        if search_lower in r.name.lower() or search_lower in r.nip.lower()
+                    ]
+
+                # Terapkan sorting jika ada
+                if self.sort_value:
+                    entries.sort(
+                        key=lambda r: getattr(r, self.sort_value) or "",
+                        reverse=self.sort_reverse
+                    )
+
+                self.entries = entries
+                print(f"Successfully loaded {len(entries)} entries")
+                
+            except Exception as e:
+                print(f"Error in load_entries: {e}")
+                self.entries = []
+
+            # Update nilai agregat
+            self.get_current_month_values()
+            self.get_previous_month_values()
+
+    def get_current_month_values(self):
+        """Contoh perhitungan agregat untuk bulan ini."""
+        now = datetime.now()
+        start_of_month = datetime(now.year, now.month, 1)
+        # Asumsikan kolom 'date' dalam format "%Y-%m-%d %H:%M:%S"
+        current_entries = [
+            entry for entry in self.entries
+            if entry.date and datetime.strptime(entry.date, "%Y-%m-%d %H:%M:%S") >= start_of_month
+        ]
+        num_entries = len(current_entries)
+        total = sum(
+            (entry.arisan or 0) +
+            (entry.denda_arisan or 0) +
+            (entry.iuran_dw or 0) +
+            (entry.simpanan_wajib_koperasi or 0) +
+            (entry.belanja_koperasi or 0) +
+            (entry.simpanan_pokok or 0) +
+            (entry.kredit_khusus or 0) +
+            (entry.kredit_barang or 0)
+            for entry in current_entries
+        )
+        self.current_month_values = MonthValues(num_entries=num_entries, total_payments=total)
+
+    def get_previous_month_values(self):
+        """Contoh perhitungan agregat untuk bulan sebelumnya."""
+        now = datetime.now()
+        first_day_of_current_month = datetime(now.year, now.month, 1)
+        last_day_previous = first_day_of_current_month - timedelta(days=1)
+        start_of_previous = datetime(last_day_previous.year, last_day_previous.month, 1)
+        previous_entries = [
+            entry for entry in self.entries
+            if entry.date and start_of_previous <= datetime.strptime(entry.date, "%Y-%m-%d %H:%M:%S") <= last_day_previous
+        ]
+        num_entries = len(previous_entries)
+        total = sum(
+            (entry.arisan or 0) +
+            (entry.denda_arisan or 0) +
+            (entry.iuran_dw or 0) +
+            (entry.simpanan_wajib_koperasi or 0) +
+            (entry.belanja_koperasi or 0) +
+            (entry.simpanan_pokok or 0) +
+            (entry.kredit_khusus or 0) +
+            (entry.kredit_barang or 0)
+            for entry in previous_entries
+        )
+        self.previous_month_values = MonthValues(num_entries=num_entries, total_payments=total)
+
+    def sort_values(self, sort_value: str):
+        self.sort_value = sort_value
+        self.load_entries()
+
+    def toggle_sort(self):
+        self.sort_reverse = not self.sort_reverse
+        self.load_entries()
+
+    def filter_values(self, search_value: str):
+        self.search_value = search_value
+        self.load_entries()
+
+    def get_entry(self, entry: EmployeeDeductionEntry):
+        self.current_entry = entry
+
+    def add_employee_entry(self, form_data: dict):
+        """
+        Menambahkan data entry baru.
+        form_data diharapkan memiliki kunci:
+        name, nip, arisan, denda_arisan, iuran_dw, simpanan_wajib_koperasi,
+        belanja_koperasi, simpanan_pokok, kredit_khusus, kredit_barang, status, payment_type
+        """
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+        with rx.session() as session:
+            # Buat record pegawai baru
+            employee = Employee(name=form_data.get("name"), nip=form_data.get("nip"))
+            session.add(employee)
+            session.commit()
+            session.refresh(employee)
+            employee_name = employee.name
+            
+            # Daftar deduction dan nilai dari form_data
+            deductions_values = {
+                "Arisan": form_data.get("arisan"),
+                "Denda Arisan": form_data.get("denda_arisan"),
+                "Iuran DW": form_data.get("iuran_dw"),
+                "Simpanan Wajib Koperasi": form_data.get("simpanan_wajib_koperasi"),
+                "Belanja Koperasi": form_data.get("belanja_koperasi"),
+                "Simpanan Pokok": form_data.get("simpanan_pokok"),
+                "Kredit Khusus": form_data.get("kredit_khusus"),
+                "Kredit Barang": form_data.get("kredit_barang"),
+            }
+            for deduction_name, amount in deductions_values.items():
+                # Dapatkan record deduction berdasarkan nama
+                ded = session.exec(
+                    select(Deduction).where(Deduction.name == deduction_name)
+                ).first()
+                if not ded:
+                    continue  # atau bisa tambahkan log/error jika record tidak ditemukan
+                ed = EmployeeDeduction(
+                    employee_id=employee.id,
+                    deduction_id=ded.id,
+                    amount=amount if amount is not None else 0.0,
+                    payment_status=form_data.get("status"),
+                    payment_type=form_data.get("payment_type"),
+                    month=current_month,
+                    year=current_year,
+                    created_at=now_str,
+                    updated_at=now_str,
+                )
+                session.add(ed)
+            session.commit()
+        self.load_entries()
+        return rx.toast.info(f"Entry for {employee_name} has been added.", position="bottom-right")
+
+    def update_employee_entry(self, form_data: dict):
+        """
+        Memperbarui data entry yang sudah ada.
+        form_data diharapkan memiliki kunci:
+        name, nip, arisan, denda_arisan, iuran_dw, simpanan_wajib_koperasi,
+        belanja_koperasi, simpanan_pokok, kredit_khusus, kredit_barang, status, payment_type
+        """
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+        with rx.session() as session:
+            # Perbarui data pegawai
+            employee = session.exec(
+                select(Employee).where(Employee.id == self.current_entry.id)
+            ).first()
+            employee.name = form_data.get("name")
+            employee.nip = form_data.get("nip")
+            session.add(employee)
+            session.commit()
+            employee_name = str(employee.name)
+
+            # Perbarui tiap record potongan untuk periode (bulan & tahun) saat ini
+            deductions_values = {
+                "Arisan": form_data.get("arisan"),
+                "Denda Arisan": form_data.get("denda_arisan"),
+                "Iuran DW": form_data.get("iuran_dw"),
+                "Simpanan Wajib Koperasi": form_data.get("simpanan_wajib_koperasi"),
+                "Belanja Koperasi": form_data.get("belanja_koperasi"),
+                "Simpanan Pokok": form_data.get("simpanan_pokok"),
+                "Kredit Khusus": form_data.get("kredit_khusus"),
+                "Kredit Barang": form_data.get("kredit_barang"),
+            }
+            for deduction_name, amount in deductions_values.items():
+                ded = session.exec(
+                    select(Deduction).where(Deduction.name == deduction_name)
+                ).first()
+                if not ded:
+                    continue
+                # Cari record EmployeeDeduction untuk pegawai ini, deduction ini, dan periode saat ini
+                ed = session.exec(
+                    select(EmployeeDeduction).where(
+                        EmployeeDeduction.employee_id == employee.id,
+                        EmployeeDeduction.deduction_id == ded.id,
+                        EmployeeDeduction.month == current_month,
+                        EmployeeDeduction.year == current_year
+                    )
+                ).first()
+                if ed:
+                    ed.amount = amount if amount is not None else 0.0
+                    ed.payment_status = form_data.get("status")
+                    ed.payment_type = form_data.get("payment_type")
+                    ed.updated_at = now_str
+                    session.add(ed)
+                else:
+                    new_ed = EmployeeDeduction(
+                        employee_id=employee.id,
+                        deduction_id=ded.id,
+                        amount=amount if amount is not None else 0.0,
+                        payment_status=form_data.get("status"),
+                        payment_type=form_data.get("payment_type"),
+                        month=current_month,
+                        year=current_year,
+                        created_at=now_str,
+                        updated_at=now_str,
+                    )
+                    session.add(new_ed)
+            session.commit()
+        self.load_entries()
+        return rx.toast.info(f"Entry for {employee_name} has been updated.", position="bottom-right")
+
+    def delete_employee(self, id: int):
+        """Menghapus entry pegawai (cascade akan menghapus data potongan terkait)."""
+        with rx.session() as session:
+            employee = session.exec(select(Employee).where(Employee.id == id)).first()
+            session.delete(employee)
+            session.commit()
+        self.load_entries()
+        return rx.toast.info(f"Entry for {employee.name} has been deleted.", position="bottom-right")
+
+    # Contoh perhitungan persentase perubahan (bisa disesuaikan jika diperlukan)
+    def _get_percentage_change(self, value: Union[int, float], prev_value: Union[int, float]) -> float:
+        if prev_value == 0:
+            return 0.0 if value == 0 else float("inf")
+        return round(((value - prev_value) / prev_value) * 100, 2)
+
+    @rx.var(cache=True)
+    def payments_change(self) -> float:
+        return self._get_percentage_change(
+            self.current_month_values.total_payments,
+            self.previous_month_values.total_payments,
+        )
+
+    @rx.var(cache=True)
+    def entries_change(self) -> float:
+        return self._get_percentage_change(
+            self.current_month_values.num_entries,
+            self.previous_month_values.num_entries,
+        )
+
+Learn\views\table.py:
+import reflex as rx
+
+from ..backend.backend import State  # Asumsi State menyediakan method load_entries, add_employee_entry, dll.
+from ..components.form_field import form_field
+from ..components.status_badges import status_badge
+
+
+def show_employee_deduction(entry) -> rx.Component:
+    print("Rendering entry:", entry.__dict__)
+    """Tampilkan satu baris data employee_deduction dalam tabel."""
+    return rx.table.row(
+        rx.table.cell(entry.name),
+        rx.table.cell(entry.nip),
+        rx.table.cell(entry.arisan),
+        rx.table.cell(entry.denda_arisan),
+        rx.table.cell(entry.iuran_dw),
+        rx.table.cell(entry.simpanan_wajib_koperasi),
+        rx.table.cell(entry.belanja_koperasi),
+        rx.table.cell(entry.simpanan_pokok),
+        rx.table.cell(entry.kredit_khusus),
+        rx.table.cell(entry.kredit_barang),
+        rx.table.cell(entry.date),
+        rx.table.cell(
+            rx.match(
+                entry.status,
+                ("paid", status_badge("Paid")),
+                ("unpaid", status_badge("Unpaid")),
+                ("installment", status_badge("Installment")),
+                status_badge("Unpaid"),
+            )
+        ),
+        rx.table.cell(entry.payment_type),
+        rx.table.cell(
+            rx.hstack(
+                update_employee_dialog(entry),
+                rx.icon_button(
+                    rx.icon("trash-2", size=22),
+                    on_click=lambda: State.delete_employee(entry.id),
+                    size="2",
+                    variant="solid",
+                    color_scheme="red",
+                ),
+            )
+        ),
+        style={"_hover": {"bg": rx.color("gray", 3)}},
+        align="center",
+    )
+
+
+def add_employee_button() -> rx.Component:
+    """Dialog untuk menambah data employee_deduction baru."""
+    return rx.dialog.root(
+        rx.dialog.trigger(
+            rx.button(
+                rx.icon("plus", size=26),
+                rx.text("Add Entry", size="4", display=["none", "none", "block"]),
+                size="3",
+            ),
+        ),
+        rx.dialog.content(
+            rx.hstack(
+                rx.badge(
+                    rx.icon(tag="clipboard", size=34),
+                    color_scheme="grass",
+                    radius="full",
+                    padding="0.65rem",
+                ),
+                rx.vstack(
+                    rx.dialog.title("Add New Entry", weight="bold", margin="0"),
+                    rx.dialog.description("Fill the form with the employee deduction info"),
+                    spacing="1",
+                    height="100%",
+                    align_items="start",
+                ),
+                height="100%",
+                spacing="4",
+                margin_bottom="1.5em",
+                align_items="center",
+                width="100%",
+            ),
+            rx.flex(
+                rx.form.root(
+                    rx.flex(
+                        # Nama & NIP
+                        form_field("Nama", "Employee Name", "text", "name", "user"),
+                        form_field("NIP", "Employee NIP", "text", "nip", "id-card"),
+                        # Deduction amounts
+                        form_field("Arisan", "Amount for Arisan", "number", "arisan", "dollar-sign"),
+                        form_field("Denda Arisan", "Amount for Denda Arisan", "number", "denda_arisan", "dollar-sign"),
+                        form_field("Iuran DW", "Amount for Iuran DW", "number", "iuran_dw", "dollar-sign"),
+                        form_field("Simpanan Wajib Koperasi", "Amount for Simpanan Wajib Koperasi", "number", "simpanan_wajib_koperasi", "dollar-sign"),
+                        form_field("Belanja Koperasi", "Amount for Belanja Koperasi", "number", "belanja_koperasi", "dollar-sign"),
+                        form_field("Simpanan Pokok", "Amount for Simpanan Pokok", "number", "simpanan_pokok", "dollar-sign"),
+                        form_field("Kredit Khusus", "Amount for Kredit Khusus", "number", "kredit_khusus", "dollar-sign"),
+                        form_field("Kredit Barang", "Amount for Kredit Barang", "number", "kredit_barang", "dollar-sign"),
+                        # Payment Status
+                        rx.vstack(
+                            rx.hstack(
+                                rx.icon("truck", size=16, stroke_width=1.5),
+                                rx.text("Status"),
+                                align="center",
+                                spacing="2",
+                            ),
+                            rx.radio(
+                                ["paid", "unpaid", "installment"],
+                                name="status",
+                                direction="row",
+                                as_child=True,
+                                required=True,
+                            ),
+                        ),
+                        # Payment Type
+                        rx.vstack(
+                            rx.hstack(
+                                rx.icon("credit-card", size=16, stroke_width=1.5),
+                                rx.text("Type"),
+                                align="center",
+                                spacing="2",
+                            ),
+                            rx.radio(
+                                ["cash", "transfer"],
+                                name="payment_type",
+                                direction="row",
+                                as_child=True,
+                                required=True,
+                            ),
+                        ),
+                        direction="column",
+                        spacing="3",
+                    ),
+                    rx.flex(
+                        rx.dialog.close(
+                            rx.button("Cancel", variant="soft", color_scheme="gray"),
+                        ),
+                        rx.form.submit(
+                            rx.dialog.close(
+                                rx.button("Submit Entry"),
+                            ),
+                            as_child=True,
+                        ),
+                        padding_top="2em",
+                        spacing="3",
+                        mt="4",
+                        justify="end",
+                    ),
+                    on_submit=State.add_employee_entry,
+                    reset_on_submit=False,
+                ),
+                width="100%",
+                direction="column",
+                spacing="4",
+            ),
+            max_width="450px",
+            padding="1.5em",
+            border=f"2px solid {rx.color('accent', 7)}",
+            border_radius="25px",
+        ),
+    )
+
+
+def update_employee_dialog(entry) -> rx.Component:
+    """Dialog untuk mengedit data employee_deduction yang sudah ada."""
+    return rx.dialog.root(
+        rx.dialog.trigger(
+            rx.button(
+                rx.icon("square-pen", size=22),
+                rx.text("Edit", size="3"),
+                color_scheme="blue",
+                size="2",
+                variant="solid",
+                on_click=lambda: State.get_entry(entry),
+            ),
+        ),
+        rx.dialog.content(
+            rx.hstack(
+                rx.badge(
+                    rx.icon(tag="square-pen", size=34),
+                    color_scheme="grass",
+                    radius="full",
+                    padding="0.65rem",
+                ),
+                rx.vstack(
+                    rx.dialog.title("Edit Entry", weight="bold", margin="0"),
+                    rx.dialog.description("Edit the employee deduction info"),
+                    spacing="1",
+                    height="100%",
+                    align_items="start",
+                ),
+                height="100%",
+                spacing="4",
+                margin_bottom="1.5em",
+                align_items="center",
+                width="100%",
+            ),
+            rx.flex(
+                rx.form.root(
+                    rx.flex(
+                        form_field("Nama", "Employee Name", "text", "name", "user", entry.name),
+                        form_field("NIP", "Employee NIP", "text", "nip", "id-card", entry.nip),
+                        form_field("Arisan", "Amount for Arisan", "number", "arisan", "dollar-sign", entry.arisan),
+                        form_field("Denda Arisan", "Amount for Denda Arisan", "number", "denda_arisan", "dollar-sign", entry.denda_arisan),
+                        form_field("Iuran DW", "Amount for Iuran DW", "number", "iuran_dw", "dollar-sign", entry.iuran_dw),
+                        form_field("Simpanan Wajib Koperasi", "Amount for Simpanan Wajib Koperasi", "number", "simpanan_wajib_koperasi", "dollar-sign", entry.simpanan_wajib_koperasi),
+                        form_field("Belanja Koperasi", "Amount for Belanja Koperasi", "number", "belanja_koperasi", "dollar-sign", entry.belanja_koperasi),
+                        form_field("Simpanan Pokok", "Amount for Simpanan Pokok", "number", "simpanan_pokok", "dollar-sign", entry.simpanan_pokok),
+                        form_field("Kredit Khusus", "Amount for Kredit Khusus", "number", "kredit_khusus", "dollar-sign", entry.kredit_khusus),
+                        form_field("Kredit Barang", "Amount for Kredit Barang", "number", "kredit_barang", "dollar-sign", entry.kredit_barang),
+                        rx.vstack(
+                            rx.hstack(
+                                rx.icon("truck", size=16, stroke_width=1.5),
+                                rx.text("Status"),
+                                align="center",
+                                spacing="2",
+                            ),
+                            rx.radio(
+                                ["paid", "unpaid", "installment"],
+                                default_value=entry.status,
+                                name="status",
+                                direction="row",
+                                as_child=True,
+                                required=True,
+                            ),
+                        ),
+                        rx.vstack(
+                            rx.hstack(
+                                rx.icon("credit-card", size=16, stroke_width=1.5),
+                                rx.text("Type"),
+                                align="center",
+                                spacing="2",
+                            ),
+                            rx.radio(
+                                ["cash", "transfer"],
+                                default_value=entry.payment_type,
+                                name="payment_type",
+                                direction="row",
+                                as_child=True,
+                                required=True,
+                            ),
+                        ),
+                        direction="column",
+                        spacing="3",
+                    ),
+                    rx.flex(
+                        rx.dialog.close(
+                            rx.button("Cancel", variant="soft", color_scheme="gray"),
+                        ),
+                        rx.form.submit(
+                            rx.dialog.close(
+                                rx.button("Update Entry"),
+                            ),
+                            as_child=True,
+                        ),
+                        padding_top="2em",
+                        spacing="3",
+                        mt="4",
+                        justify="end",
+                    ),
+                    on_submit=State.update_employee_entry,
+                    reset_on_submit=False,
+                ),
+                width="100%",
+                direction="column",
+                spacing="4",
+            ),
+            max_width="450px",
+            padding="1.5em",
+            border=f"2px solid {rx.color('accent', 7)}",
+            border_radius="25px",
+        ),
+    )
+
+
+def _header_cell(text: str, icon: str) -> rx.Component:
+    return rx.table.column_header_cell(
+        rx.hstack(
+            rx.icon(icon, size=18),
+            rx.text(text),
+            align="center",
+            spacing="2",
+        ),
+    )
+
+
+def main_table() -> rx.Component:
+    return rx.fragment(
+        rx.flex(
+            add_employee_button(),
+            rx.spacer(),
+            rx.cond(
+                State.sort_reverse,
+                rx.icon(
+                    "arrow-down-z-a",
+                    size=28,
+                    stroke_width=1.5,
+                    cursor="pointer",
+                    on_click=State.toggle_sort,
+                ),
+                rx.icon(
+                    "arrow-down-a-z",
+                    size=28,
+                    stroke_width=1.5,
+                    cursor="pointer",
+                    on_click=State.toggle_sort,
+                ),
+            ),
+            rx.select(
+                ["name", "nip", "date", "status"],
+                placeholder="Sort By: Name",
+                size="3",
+                on_change=lambda sort_value: State.sort_values(sort_value),
+            ),
+            rx.input(
+                rx.input.slot(rx.icon("search")),
+                placeholder="Search here...",
+                size="3",
+                max_width="225px",
+                width="100%",
+                variant="surface",
+                on_change=lambda value: State.filter_values(value),
+            ),
+            justify="end",
+            align="center",
+            spacing="3",
+            wrap="wrap",
+            width="100%",
+            padding_bottom="1em",
+        ),
+        rx.table.root(
+            rx.table.header(
+                rx.table.row(
+                    _header_cell("Nama", "user"),
+                    _header_cell("NIP", "id-card"),
+                    _header_cell("Arisan", "dollar-sign"),
+                    _header_cell("Denda Arisan", "dollar-sign"),
+                    _header_cell("Iuran DW", "dollar-sign"),
+                    _header_cell("Simpanan Wajib Koperasi", "dollar-sign"),
+                    _header_cell("Belanja Koperasi", "dollar-sign"),
+                    _header_cell("Simpanan Pokok", "dollar-sign"),
+                    _header_cell("Kredit Khusus", "dollar-sign"),
+                    _header_cell("Kredit Barang", "dollar-sign"),
+                    _header_cell("Date", "calendar"),
+                    _header_cell("Status", "truck"),
+                    _header_cell("Type", "tag"),
+                    _header_cell("Actions", "cog"),
+                ),
+            ),
+            rx.table.body(rx.foreach(State.entries, show_employee_deduction)),
+            variant="surface",
+            size="3",
+            width="100%",
+            on_mount=State.load_entries,
+        ),
+    )
