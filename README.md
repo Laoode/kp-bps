@@ -6,7 +6,7 @@ This app is used to showcase and edit tabular data live in an app. It links up w
 
 First clone the repo locally.
 ```bash
-git clone https://github.com/reflex-dev/templates/tree/main/customer_data_app
+git clone https://github.com/Laoode/dashbboard-reflex
 ```
 Then set up a virtual environment as outlined in our documentation. After this run `pip install -r requirements.txt`.
 
