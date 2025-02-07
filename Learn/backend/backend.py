@@ -355,6 +355,7 @@ class State(rx.State):
             self.previous_month_values.total_payments,
         )
 
+
     @rx.var(cache=True)
     def entries_change(self) -> int:
         return self._get_percentage_change(
