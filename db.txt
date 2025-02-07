@@ -14,22 +14,7 @@ CREATE TABLE IF NOT EXISTS employees (
     nip TEXT NOT NULL
 );
 
-CREATE TABLE employees_temp AS
-SELECT name, nip
-FROM employees;
 
-
-DROP TABLE employees;
-
-
-INSERT INTO employees (name, nip)
-SELECT name, nip
-FROM employees_temp;
-
-DROP TABLE customer;
-DROP TABLE employees_temp;
-DROP TABLE employee_deductions;
-DROP TABLE deductions;
 
 -- Tabel Deductions
 CREATE TABLE IF NOT EXISTS deductions (

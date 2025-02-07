@@ -214,7 +214,7 @@ def update_employee_dialog(entry) -> rx.Component:
                             ),
                             rx.radio(
                                 ["paid", "unpaid", "installment"],
-                                default_value=entry.status,
+                                default_value=entry.status ,
                                 name="status",
                                 direction="row",
                                 as_child=True,
