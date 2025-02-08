@@ -14,8 +14,9 @@ def _badge(icon: str, text: str, color_scheme: str):
 
 def status_badge(status: str):
     badge_mapping = {
-        "Delivered": ("check", "Delivered", "green"),
-        "Pending": ("loader", "Pending", "yellow"),
-        "Cancelled": ("ban", "Cancelled", "red"),
+        "paid": ("check", "paid", "green"),
+        "unpaid": ("ban", "unpaid", "red"),
+        "installment": ("clock", "installment", "yellow"),
     }
-    return _badge(*badge_mapping.get(status, ("loader", "Pending", "yellow")))
+    # Gunakan unpaid sebagai default jika status tidak ditemukan
+    return _badge(*badge_mapping.get(status, ("ban", "unpaid", "red")))

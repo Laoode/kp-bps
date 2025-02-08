@@ -29,10 +29,10 @@ def show_employee_deduction(entry) -> rx.Component:
         rx.table.cell(
             rx.match(
                 entry.status,
-                ("paid", status_badge("Paid")),
-                ("unpaid", status_badge("Unpaid")),
-                ("installment", status_badge("Installment")),
-                status_badge("Unpaid"),
+                ("paid", status_badge("paid")),  # Tambahkan warna
+                ("unpaid", status_badge("unpaid")),  # Tambahkan warna
+                ("installment", status_badge("installment")),  # Tambahkan warna
+                status_badge("unpaid"),  # Default jika tidak match
             )
         ),
         rx.table.cell(rx.badge(
