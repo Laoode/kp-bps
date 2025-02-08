@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Union, List
 from sqlalchemy import text
 import reflex as rx
 from sqlmodel import Field, String, asc, cast, desc, func, or_, select
@@ -37,8 +37,6 @@ class EmployeeDeduction(rx.Model, table=True):
 
 # Jika dibutuhkan, model untuk _view data_ (bukan tabel) bisa dibuat secara dinamis
 # Contoh: EmployeeDeductionEntry (dipakai untuk menampung hasil join/pivot)
-import reflex as rx
-
 class EmployeeDeductionEntry(rx.Model):
     id: int
     name: str
@@ -77,6 +75,11 @@ class State(rx.State):
     # Nilai agregat (bisa disesuaikan jika diperlukan)
     current_month_values: MonthValues = MonthValues()
     previous_month_values: MonthValues = MonthValues()
+    
+    # Tambahkan variabel untuk pagination
+    total_entries: int = 0
+    offset: int = 0
+    limit: int = 10  # Jumlah baris per halaman
     
     def handle_input_change(self, value: str, field_name: str):
         """Handle perubahan nilai input."""
@@ -368,3 +371,38 @@ class State(rx.State):
             self.current_month_values.num_entries,
             self.previous_month_values.num_entries,
         )
+        
+    @rx.var(cache=True)
+    def page_number(self) -> int:
+        """Mendapatkan nomor halaman saat ini."""
+        return (self.offset // self.limit) + 1
+
+    @rx.var(cache=True)
+    def total_pages(self) -> int:
+        """Mendapatkan total jumlah halaman."""
+        return (len(self.entries) // self.limit) + (1 if len(self.entries) % self.limit else 0)
+
+    @rx.var(cache=True)
+    def current_page_entries(self) -> List[EmployeeDeductionEntry]:
+        """Mendapatkan entries untuk halaman saat ini."""
+        start = self.offset
+        end = start + self.limit
+        return self.entries[start:end]
+
+    def prev_page(self):
+        """Pindah ke halaman sebelumnya."""
+        if self.page_number > 1:
+            self.offset -= self.limit
+
+    def next_page(self):
+        """Pindah ke halaman berikutnya."""
+        if self.page_number < self.total_pages:
+            self.offset += self.limit
+
+    def first_page(self):
+        """Pindah ke halaman pertama."""
+        self.offset = 0
+
+    def last_page(self):
+        """Pindah ke halaman terakhir."""
+        self.offset = (self.total_pages - 1) * self.limit

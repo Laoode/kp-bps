@@ -17,6 +17,8 @@ def index() -> rx.Component:
         width="100%",
         spacing="6",
         padding_x=["1.5em", "1.5em", "3em"],
+        padding_bottom="2em",  # Tambahkan padding bottom
+        margin_bottom="2em",   # Tambahkan margin bottom
     )
 
 

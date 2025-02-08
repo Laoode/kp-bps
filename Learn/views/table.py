@@ -1,6 +1,6 @@
 import reflex as rx
 
-from ..backend.backend import State  # Asumsi State menyediakan method load_entries, add_employee_entry, dll.
+from ..backend.backend import State,EmployeeDeductionEntry  # Asumsi State menyediakan method load_entries, add_employee_entry, dll.
 from ..components.form_field import form_field
 from ..components.status_badges import status_badge
 
@@ -11,7 +11,7 @@ class Table(rx.State):
     }
     
 
-def show_employee_deduction(entry) -> rx.Component:
+def show_employee_deduction(entry: EmployeeDeductionEntry) -> rx.Component:
     print("Rendering entry:", entry.__dict__)
     """Tampilkan satu baris data employee_deduction dalam tabel."""
     return rx.table.row(
@@ -362,7 +362,55 @@ def _header_cell(text: str, icon: str) -> rx.Component:
         ),
     )
 
-
+def _pagination_view() -> rx.Component:
+    """Tampilan kontrol pagination."""
+    return rx.hstack(
+        rx.text(
+            "Page ",
+            rx.code(State.page_number),
+            f" of {State.total_pages}",
+            justify="end",
+        ),
+        rx.hstack(
+            rx.icon_button(
+                rx.icon("chevrons-left", size=18),
+                on_click=State.first_page,
+                opacity=rx.cond(State.page_number == 1, 0.6, 1),
+                color_scheme=rx.cond(State.page_number == 1, "gray", "accent"),
+                variant="soft",
+            ),
+            rx.icon_button(
+                rx.icon("chevron-left", size=18),
+                on_click=State.prev_page,
+                opacity=rx.cond(State.page_number == 1, 0.6, 1),
+                color_scheme=rx.cond(State.page_number == 1, "gray", "accent"),
+                variant="soft",
+            ),
+            rx.icon_button(
+                rx.icon("chevron-right", size=18),
+                on_click=State.next_page,
+                opacity=rx.cond(State.page_number == State.total_pages, 0.6, 1),
+                color_scheme=rx.cond(State.page_number == State.total_pages, "gray", "accent"),
+                variant="soft",
+            ),
+            rx.icon_button(
+                rx.icon("chevrons-right", size=18),
+                on_click=State.last_page,
+                opacity=rx.cond(State.page_number == State.total_pages, 0.6, 1),
+                color_scheme=rx.cond(State.page_number == State.total_pages, "gray", "accent"),
+                variant="soft",
+            ),
+            align="center",
+            spacing="2",
+            justify="end",
+        ),
+        spacing="5",
+        margin_top="1em",
+        align="center",
+        width="100%",
+        justify="end",
+    )
+    
 def main_table() -> rx.Component:
     return rx.fragment(
         rx.flex(
@@ -426,10 +474,16 @@ def main_table() -> rx.Component:
                     _header_cell("Actions", "cog"),
                 ),
             ),
-            rx.table.body(rx.foreach(State.entries, show_employee_deduction)),
+            rx.table.body(
+                rx.foreach(
+                    State.current_page_entries,
+                    lambda x: show_employee_deduction(x)
+                )
+            ),
             variant="surface",
             size="3",
             width="100%",
             on_mount=State.load_entries,
         ),
+        _pagination_view(),
     )
