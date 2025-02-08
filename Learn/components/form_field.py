@@ -6,11 +6,13 @@ def form_field(
     type: str,
     name: str,
     icon: str,
+    # value: any = None,
     default_value: str = "",
 ) -> rx.Component:
     # Jika default_value bukan None dan bukan string, konversi ke string.
-    if default_value is not None and not isinstance(default_value, str):
-        default_value = str(default_value)
+    # Konversi None menjadi string kosong
+    # default_value = str(default_value) if default_value is not None else ""
+
     return rx.form.field(
         rx.flex(
             rx.hstack(
@@ -21,7 +23,7 @@ def form_field(
             ),
             rx.form.control(
                 rx.input(
-                    placeholder=placeholder, type=type, default_value=default_value
+                    placeholder=placeholder, type=type, default_value=default_value, id=name, name=name,is_required=False,
                 ),
                 as_child=True,
             ),

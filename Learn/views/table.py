@@ -4,6 +4,12 @@ from ..backend.backend import State  # Asumsi State menyediakan method load_entr
 from ..components.form_field import form_field
 from ..components.status_badges import status_badge
 
+class Table(rx.State):
+    color_map: dict[str,str]={
+        "transfer": "blue",
+        "cash":"cyan",
+    }
+    
 
 def show_employee_deduction(entry) -> rx.Component:
     print("Rendering entry:", entry.__dict__)
@@ -29,7 +35,12 @@ def show_employee_deduction(entry) -> rx.Component:
                 status_badge("Unpaid"),
             )
         ),
-        rx.table.cell(entry.payment_type),
+        rx.table.cell(rx.badge(
+            entry.payment_type,
+            color_scheme=Table.color_map[entry.payment_type],
+            size="3",
+            ),
+        ),
         rx.table.cell(
             rx.hstack(
                 update_employee_dialog(entry),
@@ -156,10 +167,10 @@ def add_employee_button() -> rx.Component:
             border_radius="25px",
         ),
     )
-
-
 def update_employee_dialog(entry) -> rx.Component:
     """Dialog untuk mengedit data employee_deduction yang sudah ada."""
+    print("Entry status:", entry.status)  # Debug print
+    print("Entry payment_type:", entry.payment_type)
     return rx.dialog.root(
         rx.dialog.trigger(
             rx.button(
@@ -195,16 +206,87 @@ def update_employee_dialog(entry) -> rx.Component:
             rx.flex(
                 rx.form.root(
                     rx.flex(
-                        form_field("Nama", "Employee Name", "text", "name", "user", entry.name),
-                        form_field("NIP", "Employee NIP", "text", "nip", "id-card", entry.nip),
-                        form_field("Arisan", "Amount for Arisan", "number", "arisan", "dollar-sign", entry.arisan),
-                        form_field("Denda Arisan", "Amount for Denda Arisan", "number", "denda_arisan", "dollar-sign", entry.denda_arisan),
-                        form_field("Iuran DW", "Amount for Iuran DW", "number", "iuran_dw", "dollar-sign", entry.iuran_dw),
-                        form_field("Simpanan Wajib Koperasi", "Amount for Simpanan Wajib Koperasi", "number", "simpanan_wajib_koperasi", "dollar-sign", entry.simpanan_wajib_koperasi),
-                        form_field("Belanja Koperasi", "Amount for Belanja Koperasi", "number", "belanja_koperasi", "dollar-sign", entry.belanja_koperasi),
-                        form_field("Simpanan Pokok", "Amount for Simpanan Pokok", "number", "simpanan_pokok", "dollar-sign", entry.simpanan_pokok),
-                        form_field("Kredit Khusus", "Amount for Kredit Khusus", "number", "kredit_khusus", "dollar-sign", entry.kredit_khusus),
-                        form_field("Kredit Barang", "Amount for Kredit Barang", "number", "kredit_barang", "dollar-sign", entry.kredit_barang),
+                        form_field(
+                            "Nama", 
+                            "Employee Name", 
+                            "text", 
+                            "name", 
+                            "user", 
+                            entry.name,
+                        ),
+                        form_field(
+                            "NIP", 
+                            "Employee NIP", 
+                            "text", 
+                            "nip", 
+                            "id-card", 
+                            entry.nip,
+                        ),
+                        form_field(
+                            "Arisan", 
+                            "Amount for Arisan", 
+                            "number", 
+                            "arisan", 
+                            "dollar-sign", 
+                            entry.arisan.to(str),
+                        ),
+                        form_field(
+                            "Denda Arisan", 
+                            "Amount for Denda Arisan", 
+                            "number", 
+                            "denda_arisan", 
+                            "dollar-sign", 
+                            entry.denda_arisan.to(str),
+                        ),
+                        form_field(
+                            "Iuran DW", 
+                            "Amount for Iuran DW", 
+                            "number", 
+                            "iuran_dw", 
+                            "dollar-sign", 
+                            entry.iuran_dw.to(str),
+                        ),
+                        form_field(
+                            "Simpanan Wajib Koperasi", 
+                            "Amount for Simpanan Wajib Koperasi", 
+                            "number", 
+                            "simpanan_wajib_koperasi", 
+                            "dollar-sign", 
+                            entry.simpanan_wajib_koperasi.to(str),
+                        ),
+                        form_field(
+                            "Belanja Koperasi", 
+                            "Amount for Belanja Koperasi", 
+                            "number", 
+                            "belanja_koperasi", 
+                            "dollar-sign", 
+                            entry.belanja_koperasi.to(str),
+                        ),
+                        form_field(
+                            "Simpanan Pokok", 
+                            "Amount for Simpanan Pokok", 
+                            "number", 
+                            "simpanan_pokok", 
+                            "dollar-sign", 
+                            entry.simpanan_pokok.to(str),
+                        ),
+                        form_field(
+                            "Kredit Khusus", 
+                            "Amount for Kredit Khusus", 
+                            "number", 
+                            "kredit_khusus", 
+                            "dollar-sign", 
+                            entry.kredit_khusus.to(str),
+                        ),
+                        form_field(
+                            "Kredit Barang", 
+                            "Amount for Kredit Barang", 
+                            "number", 
+                            "kredit_barang", 
+                            "dollar-sign", 
+                            entry.kredit_barang.to(str),
+                        ),
+                        # Status
                         rx.vstack(
                             rx.hstack(
                                 rx.icon("truck", size=16, stroke_width=1.5),
@@ -214,13 +296,14 @@ def update_employee_dialog(entry) -> rx.Component:
                             ),
                             rx.radio(
                                 ["paid", "unpaid", "installment"],
-                                default_value=entry.status ,
+                                default_value=entry.status,
                                 name="status",
                                 direction="row",
                                 as_child=True,
-                                required=True,
+                                required=True,     
                             ),
                         ),
+                        # Radio button untuk Payment Type dengan default_value
                         rx.vstack(
                             rx.hstack(
                                 rx.icon("credit-card", size=16, stroke_width=1.5),
@@ -268,7 +351,6 @@ def update_employee_dialog(entry) -> rx.Component:
             border_radius="25px",
         ),
     )
-
 
 def _header_cell(text: str, icon: str) -> rx.Component:
     return rx.table.column_header_cell(

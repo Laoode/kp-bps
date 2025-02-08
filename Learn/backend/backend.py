@@ -77,7 +77,12 @@ class State(rx.State):
     # Nilai agregat (bisa disesuaikan jika diperlukan)
     current_month_values: MonthValues = MonthValues()
     previous_month_values: MonthValues = MonthValues()
-
+    
+    def handle_input_change(self, value: str, field_name: str):
+        """Handle perubahan nilai input."""
+        if hasattr(self.current_entry, field_name):
+            setattr(self.current_entry, field_name, value)
+            
     def load_entries(self) -> None:
         with rx.session() as session:
             query = """
@@ -215,6 +220,7 @@ class State(rx.State):
         self.load_entries()
 
     def get_entry(self, entry: EmployeeDeductionEntry):
+        print("Current entry:", entry.__dict__) 
         self.current_entry = entry
 
     def add_employee_entry(self, form_data: dict):
