@@ -255,8 +255,8 @@ class State(rx.State):
 
     def add_employee_entry(self, form_data: dict):
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        current_month = datetime.now().month
-        current_year = datetime.now().year
+        current_month = self.current_month.month
+        current_year = self.current_month.year
         with rx.session() as session:
             # Buat record pegawai baru
             employee = Employee(name=form_data.get("name"), nip=form_data.get("nip"))
@@ -297,7 +297,7 @@ class State(rx.State):
                 session.add(ed)
             session.commit()
         self.load_entries()
-        return rx.toast.info(f"Entry for {employee_name} has been added.", position="bottom-right")
+        return rx.toast.info(f"Entry for {employee_name} has been added for {self.formatted_month}.", position="bottom-right")
 
     def update_employee_entry(self, form_data: dict):
         """
@@ -307,8 +307,8 @@ class State(rx.State):
         belanja_koperasi, simpanan_pokok, kredit_khusus, kredit_barang, status, payment_type
         """
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        current_month = datetime.now().month
-        current_year = datetime.now().year
+        current_month = self.current_month.month
+        current_year = self.current_month.year
         with rx.session() as session:
             # Perbarui data pegawai
             employee = session.exec(
@@ -367,7 +367,7 @@ class State(rx.State):
                     session.add(new_ed)
             session.commit()
         self.load_entries()
-        return rx.toast.info(f"Entry for {employee_name} has been updated.", position="bottom-right")
+        return rx.toast.info(f"Entry for {employee_name} has been updated for {self.formatted_month}.", position="bottom-right")
 
     def delete_employee(self, id: int):
         """Menghapus entry pegawai (cascade akan menghapus data potongan terkait)."""
