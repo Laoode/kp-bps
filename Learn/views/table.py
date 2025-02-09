@@ -410,12 +410,40 @@ def _pagination_view() -> rx.Component:
         width="100%",
         justify="end",
     )
+
+
+def month_navigation() -> rx.Component:
+    """Komponen navigasi bulan."""
+    return rx.hstack(
+        rx.icon_button(
+            rx.icon("chevron-left"),
+            on_click=State.prev_month,
+            variant="ghost",
+        ),
+        rx.badge(
+            rx.center(
+                State.formatted_month,
+                width="100%",
+            ),
+            variant="surface",
+            min_width="150px",
+            text_align="center",
+            size="3",
+        ),
+        rx.icon_button(
+            rx.icon("chevron-right"),
+            on_click=State.next_month,
+            variant="ghost",
+        ),
+        spacing="3",
+    )
     
 def main_table() -> rx.Component:
     return rx.fragment(
         rx.flex(
             add_employee_button(),
             rx.spacer(),
+            month_navigation(),  # Tambahkan navigasi bulan
             rx.cond(
                 State.sort_reverse,
                 rx.icon(

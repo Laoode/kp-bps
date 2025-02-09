@@ -81,6 +81,24 @@ class State(rx.State):
     offset: int = 0
     limit: int = 10  # Jumlah baris per halaman
     
+    current_month: datetime = datetime.now()  # Untuk tracking bulan aktif
+    
+    def next_month(self):
+        """Pindah ke bulan berikutnya."""
+        self.current_month = (self.current_month.replace(day=1) + timedelta(days=32)).replace(day=1)
+        self.load_entries()
+
+    def prev_month(self):
+        """Pindah ke bulan sebelumnya."""
+        self.current_month = (self.current_month.replace(day=1) - timedelta(days=1)).replace(day=1)
+        self.load_entries()    
+        
+    @rx.var(cache=True)
+    def formatted_month(self) -> str:
+        """Format bulan untuk ditampilkan."""
+        return self.current_month.strftime("%B %Y")
+
+
     def handle_input_change(self, value: str, field_name: str):
         """Handle perubahan nilai input."""
         if hasattr(self.current_entry, field_name):
@@ -106,12 +124,21 @@ class State(rx.State):
                     MAX(ed.payment_type) AS payment_type
                 FROM employees e
                 LEFT JOIN employee_deductions ed ON ed.employee_id = e.id 
+                    AND ed.month = :month 
+                    AND ed.year = :year
                 LEFT JOIN deductions d ON ed.deduction_id = d.id
                 GROUP BY e.id, e.name, e.nip
             """
             
             try:
-                result = session.execute(text(query))
+                # result = session.execute(text(query))
+                result = session.execute(
+                    text(query), 
+                    {
+                        "month": self.current_month.month,
+                        "year": self.current_month.year
+                    }
+                )
                 entries = []
                 for row in result:
                     try:

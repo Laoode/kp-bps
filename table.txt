@@ -1,6 +1,6 @@
 import reflex as rx
 
-from ..backend.backend import State  # Asumsi State menyediakan method load_entries, add_employee_entry, dll.
+from ..backend.backend import State,EmployeeDeductionEntry  # Asumsi State menyediakan method load_entries, add_employee_entry, dll.
 from ..components.form_field import form_field
 from ..components.status_badges import status_badge
 
@@ -11,7 +11,7 @@ class Table(rx.State):
     }
     
 
-def show_employee_deduction(entry) -> rx.Component:
+def show_employee_deduction(entry: EmployeeDeductionEntry) -> rx.Component:
     print("Rendering entry:", entry.__dict__)
     """Tampilkan satu baris data employee_deduction dalam tabel."""
     return rx.table.row(
@@ -29,10 +29,10 @@ def show_employee_deduction(entry) -> rx.Component:
         rx.table.cell(
             rx.match(
                 entry.status,
-                ("paid", status_badge("Paid")),
-                ("unpaid", status_badge("Unpaid")),
-                ("installment", status_badge("Installment")),
-                status_badge("Unpaid"),
+                ("paid", status_badge("paid")),  # Tambahkan warna
+                ("unpaid", status_badge("unpaid")),  # Tambahkan warna
+                ("installment", status_badge("installment")),  # Tambahkan warna
+                status_badge("unpaid"),  # Default jika tidak match
             )
         ),
         rx.table.cell(rx.badge(
@@ -300,7 +300,7 @@ def update_employee_dialog(entry) -> rx.Component:
                                 name="status",
                                 direction="row",
                                 as_child=True,
-                                required=True,
+                                required=True,     
                             ),
                         ),
                         # Radio button untuk Payment Type dengan default_value
@@ -362,12 +362,88 @@ def _header_cell(text: str, icon: str) -> rx.Component:
         ),
     )
 
+def _pagination_view() -> rx.Component:
+    """Tampilan kontrol pagination."""
+    return rx.hstack(
+        rx.text(
+            "Page ",
+            rx.code(State.page_number),
+            f" of {State.total_pages}",
+            justify="end",
+        ),
+        rx.hstack(
+            rx.icon_button(
+                rx.icon("chevrons-left", size=18),
+                on_click=State.first_page,
+                opacity=rx.cond(State.page_number == 1, 0.6, 1),
+                color_scheme=rx.cond(State.page_number == 1, "gray", "accent"),
+                variant="soft",
+            ),
+            rx.icon_button(
+                rx.icon("chevron-left", size=18),
+                on_click=State.prev_page,
+                opacity=rx.cond(State.page_number == 1, 0.6, 1),
+                color_scheme=rx.cond(State.page_number == 1, "gray", "accent"),
+                variant="soft",
+            ),
+            rx.icon_button(
+                rx.icon("chevron-right", size=18),
+                on_click=State.next_page,
+                opacity=rx.cond(State.page_number == State.total_pages, 0.6, 1),
+                color_scheme=rx.cond(State.page_number == State.total_pages, "gray", "accent"),
+                variant="soft",
+            ),
+            rx.icon_button(
+                rx.icon("chevrons-right", size=18),
+                on_click=State.last_page,
+                opacity=rx.cond(State.page_number == State.total_pages, 0.6, 1),
+                color_scheme=rx.cond(State.page_number == State.total_pages, "gray", "accent"),
+                variant="soft",
+            ),
+            align="center",
+            spacing="2",
+            justify="end",
+        ),
+        spacing="5",
+        margin_top="1em",
+        align="center",
+        width="100%",
+        justify="end",
+    )
 
+
+def month_navigation() -> rx.Component:
+    """Komponen navigasi bulan."""
+    return rx.hstack(
+        rx.icon_button(
+            rx.icon("chevron-left"),
+            on_click=State.prev_month,
+            variant="ghost",
+        ),
+        rx.badge(
+            rx.center(
+                State.formatted_month,
+                width="100%",
+            ),
+            variant="surface",
+            min_width="150px",
+            text_align="center",
+            size="3",
+        ),
+        rx.icon_button(
+            rx.icon("chevron-right"),
+            on_click=State.next_month,
+            variant="ghost",
+        ),
+        spacing="3",
+    )
+    
 def main_table() -> rx.Component:
     return rx.fragment(
         rx.flex(
             add_employee_button(),
             rx.spacer(),
+            month_navigation(),  # Tambahkan navigasi bulan
             rx.cond(
                 State.sort_reverse,
                 rx.icon(
@@ -426,10 +502,16 @@ def main_table() -> rx.Component:
                     _header_cell("Actions", "cog"),
                 ),
             ),
-            rx.table.body(rx.foreach(State.entries, show_employee_deduction)),
+            rx.table.body(
+                rx.foreach(
+                    State.current_page_entries,
+                    lambda x: show_employee_deduction(x)
+                )
+            ),
             variant="surface",
             size="3",
             width="100%",
             on_mount=State.load_entries,
         ),
+        _pagination_view(),
     )
