@@ -377,6 +377,9 @@ class State(rx.State):
             session.commit()
         self.load_entries()
         return rx.toast.info(f"Entry for {employee.name} has been deleted.", position="bottom-right")
+    
+    def download_employee(self, employee_id):
+        print(f"Downloading employee data for ID: {employee_id}")
 
     # Contoh perhitungan persentase perubahan (bisa disesuaikan jika diperlukan)
     def _get_percentage_change(self, value: Union[int, int], prev_value: Union[int, int]) -> int:

@@ -51,6 +51,13 @@ def show_employee_deduction(entry: EmployeeDeductionEntry) -> rx.Component:
                     variant="solid",
                     color_scheme="red",
                 ),
+                rx.icon_button(
+                    rx.icon("download", size=22),
+                    on_click=lambda: State.download_employee(entry.id),
+                    size="2",
+                    variant="solid",
+                    color_scheme="blue",
+                ),
             )
         ),
         style={"_hover": {"bg": rx.color("gray", 3)}},

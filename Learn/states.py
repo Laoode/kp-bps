@@ -165,4 +165,6 @@ class Authentication(LoginState):
         self.user_id = ""
         self.user_email = ""
         return rx.redirect("/login")
+    
+
         
