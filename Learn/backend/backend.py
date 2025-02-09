@@ -1,4 +1,9 @@
+import io
+import csv
+import pandas as pd
+from io import BytesIO
 from datetime import datetime, timedelta
+import calendar
 from typing import Union, List
 from sqlalchemy import text
 import reflex as rx
@@ -82,6 +87,59 @@ class State(rx.State):
     limit: int = 10  # Jumlah baris per halaman
     
     current_month: datetime = datetime.now()  # Untuk tracking bulan aktif
+    
+    def download_deduction_slip(self, entry: EmployeeDeductionEntry):
+        """Generate and download deduction slip for an employee."""
+        # Create string buffer
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write title
+        month_name = calendar.month_name[self.current_month.month]
+        year = self.current_month.year
+        writer.writerow([f'LIST OF COOPERATIVE DEDUCTIONS FOR THE MONTH OF {month_name} {year}'])
+        writer.writerow([])  # Empty row for spacing
+        
+        # Write employee info
+        writer.writerow(['Name', ':', entry.name])
+        writer.writerow([])  # Empty row for spacing
+        
+        # Write deductions header
+        writer.writerow(['Deductions:'])
+        
+        # Define deductions and write them
+        total_amount = 0
+        deductions = [
+            ('Arisan', entry.arisan),
+            ('Denda Arisan', entry.denda_arisan),
+            ('Iuran DW', entry.iuran_dw),
+            ('Simpanan Wajib Koperasi', entry.simpanan_wajib_koperasi),
+            ('Belanja Koperasi', entry.belanja_koperasi),
+            ('Simpanan Pokok', entry.simpanan_pokok),
+            ('Kredit Khusus', entry.kredit_khusus),
+            ('Kredit Barang', entry.kredit_barang),
+        ]
+        
+        # Write deductions that have values
+        for deduction_name, amount in deductions:
+            if amount:  # Only write if amount exists
+                writer.writerow(['', deduction_name, f'Rp {amount:,.2f}'.replace(',', '_').replace('.', ',').replace('_', '.')])
+                total_amount += amount
+        
+        writer.writerow([])  # Empty row for spacing
+        writer.writerow(['', 'Jumlah Potongan', f'Rp {total_amount:,.2f}'.replace(',', '_').replace('.', ',').replace('_', '.')])
+        
+        # Get the CSV data
+        csv_data = output.getvalue()
+        output.close()
+        
+        # Generate filename
+        filename = f"deduction_slip_{entry.name.replace(' ', '_')}_{month_name}_{year}.csv"
+        
+        return rx.download(
+            data=csv_data,
+            filename=filename,
+        )
     
     def next_month(self):
         """Pindah ke bulan berikutnya."""
@@ -377,9 +435,6 @@ class State(rx.State):
             session.commit()
         self.load_entries()
         return rx.toast.info(f"Entry for {employee.name} has been deleted.", position="bottom-right")
-    
-    def download_employee(self, employee_id):
-        print(f"Downloading employee data for ID: {employee_id}")
 
     # Contoh perhitungan persentase perubahan (bisa disesuaikan jika diperlukan)
     def _get_percentage_change(self, value: Union[int, int], prev_value: Union[int, int]) -> int:

@@ -2,3 +2,6 @@ reflex>=0.5.3
 psycopg2-binary
 jwt
 PyJWT
+pandas
+xlsxwriter
+python-dotenv

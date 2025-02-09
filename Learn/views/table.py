@@ -43,6 +43,15 @@ def show_employee_deduction(entry: EmployeeDeductionEntry) -> rx.Component:
         ),
         rx.table.cell(
             rx.hstack(
+                # Download button
+                rx.icon_button(
+                    rx.icon("download", size=22),
+                    on_click=lambda: State.download_deduction_slip(entry),
+                    size="2",
+                    variant="solid",
+                    color_scheme="grass",
+                ),
+                # Edit button
                 update_employee_dialog(entry),
                 rx.icon_button(
                     rx.icon("trash-2", size=22),
@@ -51,13 +60,7 @@ def show_employee_deduction(entry: EmployeeDeductionEntry) -> rx.Component:
                     variant="solid",
                     color_scheme="red",
                 ),
-                rx.icon_button(
-                    rx.icon("download", size=22),
-                    on_click=lambda: State.download_employee(entry.id),
-                    size="2",
-                    variant="solid",
-                    color_scheme="blue",
-                ),
+                spacing="2",
             )
         ),
         style={"_hover": {"bg": rx.color("gray", 3)}},
@@ -182,7 +185,6 @@ def update_employee_dialog(entry) -> rx.Component:
         rx.dialog.trigger(
             rx.button(
                 rx.icon("square-pen", size=22),
-                rx.text("Edit", size="3"),
                 color_scheme="blue",
                 size="2",
                 variant="solid",
@@ -522,4 +524,3 @@ def main_table() -> rx.Component:
         ),
         _pagination_view(),
     )
-    
