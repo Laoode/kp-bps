@@ -522,3 +522,4 @@ def main_table() -> rx.Component:
         ),
         _pagination_view(),
     )
+    
