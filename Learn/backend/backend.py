@@ -88,6 +88,51 @@ class State(rx.State):
     
     current_month: datetime = datetime.now()  # Untuk tracking bulan aktif
     
+    def download_table_data(self) -> None:
+        """Generate and download table data as CSV for current month."""
+        # Create string buffer
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write headers
+        headers = [
+            'Nama', 'NIP', 'Arisan', 'Denda Arisan', 'Iuran DW', 
+            'Simpanan Wajib Koperasi', 'Belanja Koperasi', 'Simpanan Pokok', 
+            'Kredit Khusus', 'Kredit Barang', 'Date', 'Status', 'Type'
+        ]
+        writer.writerow(headers)
+        
+        # Write data rows
+        for entry in self.entries:
+            row = [
+                entry.name,
+                entry.nip,
+                entry.arisan or '',
+                entry.denda_arisan or '',
+                entry.iuran_dw or '',
+                entry.simpanan_wajib_koperasi or '',
+                entry.belanja_koperasi or '',
+                entry.simpanan_pokok or '',
+                entry.kredit_khusus or '',
+                entry.kredit_barang or '',
+                entry.date,
+                entry.status,
+                entry.payment_type
+            ]
+            writer.writerow(row)
+        
+        # Get the CSV data
+        csv_data = output.getvalue()
+        output.close()
+        
+        # Generate filename with current month and year
+        filename = f"employee_deductions_{self.current_month.strftime('%B_%Y')}.csv"
+        
+        return rx.download(
+            data=csv_data,
+            filename=filename,
+        )
+    
     def download_deduction_slip(self, entry: EmployeeDeductionEntry):
         """Generate and download deduction slip for an employee."""
         # Create string buffer

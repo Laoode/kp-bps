@@ -485,6 +485,15 @@ def main_table() -> rx.Component:
                 variant="surface",
                 on_change=lambda value: State.filter_values(value),
             ),
+            rx.button(
+                rx.hstack(
+                    rx.icon("arrow-down-to-line", size=20),
+                    rx.text("Export"),
+                ),
+                size="3",
+                variant="surface",
+                on_click=State.download_table_data,
+            ),
             justify="end",
             align="center",
             spacing="3",
