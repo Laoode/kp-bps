@@ -47,13 +47,13 @@ class EmployeeDeductionEntry(rx.Model):
     name: str
     nip: str
     arisan: int | None = None
-    denda_arisan: int | None = None
     iuran_dw: int | None = None
     simpanan_wajib_koperasi: int | None = None
     belanja_koperasi: int | None = None
     simpanan_pokok: int | None = None
     kredit_khusus: int | None = None
     kredit_barang: int | None = None
+    total_potongan: int | None = None
     date: str | None = None
     status: str | None = None
     payment_type: str | None = None
@@ -96,25 +96,35 @@ class State(rx.State):
         
         # Write headers
         headers = [
-            'Nama', 'NIP', 'Arisan', 'Denda Arisan', 'Iuran DW', 
+            'Nama', 'NIP', 'Arisan', 'Iuran DW', 
             'Simpanan Wajib Koperasi', 'Belanja Koperasi', 'Simpanan Pokok', 
-            'Kredit Khusus', 'Kredit Barang', 'Date', 'Status', 'Type'
+            'Kredit Khusus', 'Kredit Barang', 'Total Potongan', 'Date', 'Status', 'Type'
         ]
         writer.writerow(headers)
         
         # Write data rows
-        for entry in self.entries:
+        for entry in self.entries:      
+            total_potongan = (
+                (entry.arisan or 0) +
+                (entry.iuran_dw or 0) +
+                (entry.simpanan_wajib_koperasi or 0) +
+                (entry.belanja_koperasi or 0) +
+                (entry.simpanan_pokok or 0) +
+                (entry.kredit_khusus or 0) +
+                (entry.kredit_barang or 0)
+            )
+            total_potongan = total_potongan if total_potongan != 0 else ''
             row = [
                 entry.name,
                 entry.nip,
                 entry.arisan or '',
-                entry.denda_arisan or '',
                 entry.iuran_dw or '',
                 entry.simpanan_wajib_koperasi or '',
                 entry.belanja_koperasi or '',
                 entry.simpanan_pokok or '',
                 entry.kredit_khusus or '',
                 entry.kredit_barang or '',
+                total_potongan,
                 entry.date,
                 entry.status,
                 entry.payment_type
@@ -156,7 +166,6 @@ class State(rx.State):
         total_amount = 0
         deductions = [
             ('Arisan', entry.arisan),
-            ('Denda Arisan', entry.denda_arisan),
             ('Iuran DW', entry.iuran_dw),
             ('Simpanan Wajib Koperasi', entry.simpanan_wajib_koperasi),
             ('Belanja Koperasi', entry.belanja_koperasi),
@@ -215,7 +224,6 @@ class State(rx.State):
                     e.name,
                     e.nip,
                     MAX(CASE WHEN d.name = 'Arisan' THEN ed.amount END) AS arisan,
-                    MAX(CASE WHEN d.name = 'Denda Arisan' THEN ed.amount END) AS denda_arisan,
                     MAX(CASE WHEN d.name = 'Iuran DW' THEN ed.amount END) AS iuran_dw,
                     MAX(CASE WHEN d.name = 'Simpanan Wajib Koperasi' THEN ed.amount END) AS simpanan_wajib_koperasi,
                     MAX(CASE WHEN d.name = 'Belanja Koperasi' THEN ed.amount END) AS belanja_koperasi,
@@ -245,21 +253,31 @@ class State(rx.State):
                 entries = []
                 for row in result:
                     try:
+                        total_potongan = (
+                            (row[3] or 0) +
+                            (row[4] or 0) +
+                            (row[5] or 0) +
+                            (row[6] or 0) +
+                            (row[7] or 0) +
+                            (row[8] or 0) +
+                            (row[9] or 0)
+                        )
+                        total_potongan = total_potongan if total_potongan != 0 else None
                         row_dict = {
                             "id": row[0],
                             "name": row[1],
                             "nip": row[2],
-                            "arisan": row[3] if row[3] is not None else None, # Biarkan None jika NULL
-                            "denda_arisan": row[4] if row[4] is not None else None,
-                            "iuran_dw": row[5] if row[5] is not None else None,
-                            "simpanan_wajib_koperasi": row[6] if row[6] is not None else None,
-                            "belanja_koperasi": row[7] if row[7] is not None else None,
-                            "simpanan_pokok": row[8] if row[8] is not None else None,
-                            "kredit_khusus": row[9] if row[9] is not None else None,
-                            "kredit_barang": row[10] if row[10] is not None else None,
-                            "date": str(row[11] or ""),
-                            "status": str(row[12] or ""),
-                            "payment_type": str(row[13] or "")
+                            "arisan": row[3] if row[3] is not None else None,
+                            "iuran_dw": row[4] if row[4] is not None else None,
+                            "simpanan_wajib_koperasi": row[5] if row[5] is not None else None,
+                            "belanja_koperasi": row[6] if row[6] is not None else None,
+                            "simpanan_pokok": row[7] if row[7] is not None else None,
+                            "kredit_khusus": row[8] if row[8] is not None else None,
+                            "kredit_barang": row[9] if row[9] is not None else None,
+                            "total_potongan": total_potongan,
+                            "date": str(row[10] or ""),
+                            "status": str(row[11] or ""),
+                            "payment_type": str(row[12] or "")
                         }
                         entry = EmployeeDeductionEntry(**row_dict)
                         entries.append(entry)
@@ -305,7 +323,6 @@ class State(rx.State):
         num_entries = len(current_entries)
         total = sum(
             (entry.arisan or 0) +
-            (entry.denda_arisan or 0) +
             (entry.iuran_dw or 0) +
             (entry.simpanan_wajib_koperasi or 0) +
             (entry.belanja_koperasi or 0) +
@@ -329,7 +346,6 @@ class State(rx.State):
         num_entries = len(previous_entries)
         total = sum(
             (entry.arisan or 0) +
-            (entry.denda_arisan or 0) +
             (entry.iuran_dw or 0) +
             (entry.simpanan_wajib_koperasi or 0) +
             (entry.belanja_koperasi or 0) +
@@ -371,7 +387,6 @@ class State(rx.State):
             # Daftar deduction dan nilai dari form_data
             deductions_values = {
                 "Arisan": int(form_data.get("arisan")) if form_data.get("arisan") else None,
-                "Denda Arisan": int(form_data.get("denda_arisan"))if form_data.get("denda_arisan") else None,
                 "Iuran DW": int(form_data.get("iuran_dw")) if form_data.get("iuran_dw") else None,
                 "Simpanan Wajib Koperasi": int(form_data.get("simpanan_wajib_koperasi")) if form_data.get("simpanan_wajib_koperasi") else None,
                 "Belanja Koperasi": int(form_data.get("belanja_koperasi")) if form_data.get("belanja_koperasi") else None,
@@ -426,7 +441,6 @@ class State(rx.State):
             # Perbarui tiap record potongan untuk periode (bulan & tahun) saat ini
             deductions_values = {
             "Arisan": int(form_data.get("arisan")) if form_data.get("arisan") else None,
-            "Denda Arisan": int(form_data.get("denda_arisan")) if form_data.get("denda_arisan") else None,
             "Iuran DW": int(form_data.get("iuran_dw")) if form_data.get("iuran_dw") else None,
             "Simpanan Wajib Koperasi": int(form_data.get("simpanan_wajib_koperasi")) if form_data.get("simpanan_wajib_koperasi") else None,
             "Belanja Koperasi": int(form_data.get("belanja_koperasi")) if form_data.get("belanja_koperasi") else None,

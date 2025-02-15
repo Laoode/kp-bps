@@ -170,6 +170,22 @@ def add_employee_button() -> rx.Component:
             border_radius="25px",
         ),
     )
+    
+def upload_csv_button() -> rx.Component:
+    """Button untuk mengunggah file CSV."""
+    return rx.upload(
+        rx.hstack(
+            rx.icon("arrow-up-to-line", size=20),
+            rx.text("Import"),
+        ),
+        id="upload_csv",
+        accept=".csv",
+        multiple=False,
+        on_drop=State.import_csv(rx.upload_files(upload_id="upload_csv")),
+        border="1px dotted rgb(107,99,246)",
+        padding="1em",
+    )
+    
 def update_employee_dialog(entry) -> rx.Component:
     """Dialog untuk mengedit data employee_deduction yang sudah ada."""
     print("Entry status:", entry.status)  # Debug print
@@ -533,6 +549,7 @@ def main_table() -> rx.Component:
                 variant="surface",
                 on_click=State.download_table_data,
             ),
+            upload_csv_button(),
             justify="end",
             align="center",
             spacing="3",

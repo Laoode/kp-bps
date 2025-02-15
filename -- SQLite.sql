@@ -154,17 +154,11 @@ INSERT INTO deductions (name) VALUES
 -- Hapus Denda Arisan dari tabel deductions
 DELETE FROM deductions WHERE name = 'Denda Arisan';
 
--- Cek data potongan untuk bulan ini
-SELECT 
-    e.name,
-    e.nip,
-    d.name as deduction_type,
-    ed.amount,
-    ed.payment_status,
-    ed.payment_type,
-    ed.updated_at
-FROM employees e
-JOIN employee_deductions ed ON e.id = ed.employee_id
-JOIN deductions d ON d.id = ed.deduction_id
-WHERE ed.month = strftime('%m', '1')
-AND ed.year = strftime('%Y', 'now');
+-- Hapus semua data dari tabel employee_deductions
+DELETE FROM employee_deductions;
+
+-- Hapus semua data dari tabel employees
+DELETE FROM employees;
+
+-- Hapus table employees
+DROP TABLE employees;
