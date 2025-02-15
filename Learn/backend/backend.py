@@ -98,9 +98,9 @@ class State(rx.State):
         content = await file.read()
         print("RAW CSV CONTENT:\n", content.decode('utf-8-sig'))
 
-        # Gunakan pandas untuk membaca CSV
-        df = pd.read_csv(io.StringIO(content.decode('utf-8')))
-
+        # Gunakan parameter thousands='.' agar angka seperti "110.000" diparsing menjadi 110000
+        df = pd.read_csv(io.StringIO(content.decode('utf-8')), thousands='.')
+        
         # Cetak nama kolom untuk debugging
         print("CSV Columns:", df.columns.tolist())
         print(df.head())
@@ -128,7 +128,7 @@ class State(rx.State):
                 # Parse CSV date (jika ada); jika kosong, jadikan None
                 csv_date = row['Date'] if pd.notna(row['Date']) and str(row['Date']).strip() != "" else None
 
-                # Daftar deduction dan nilai dari CSV
+                # Daftar deduction dan nilai dari CSV (nilai numerik sudah terkonversi karena thousands='.' digunakan)
                 deductions_values = {
                     "Arisan": int(row['Arisan']) if pd.notna(row['Arisan']) else None,
                     "Iuran DW": int(row['Iuran DW']) if pd.notna(row['Iuran DW']) else None,
@@ -161,13 +161,13 @@ class State(rx.State):
                             ed.amount = amount
                             ed.payment_status = row['Status'] if row['Status'] in ['paid', 'unpaid', 'installment'] else 'unpaid'
                             ed.payment_type = row['Type'] if row['Type'] in ['cash', 'transfer'] else None
-                            # Jika CSV date tersedia, gunakan CSV date; jika kosong, jangan mengubah updated_at
+                            # Jika CSV date tersedia, gunakan CSV date; jika tidak, biarkan nilai yang ada
                             if csv_date is not None:
                                 ed.updated_at = csv_date
                             ed.total_potongan = int(row['Total Potongan']) if pd.notna(row['Total Potongan']) else None
                             session.add(ed)
                     else:
-                        # Untuk entri baru, gunakan CSV date jika ada; kalau tidak, set sebagai kosong ("")
+                        # Untuk entri baru, gunakan CSV date jika ada; jika kosong, set sebagai kosong ("")
                         new_date = csv_date if csv_date is not None else ""
                         ed = EmployeeDeduction(
                             employee_id=employee.id,

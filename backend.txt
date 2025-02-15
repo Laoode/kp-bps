@@ -93,26 +93,26 @@ class State(rx.State):
         """Import data from CSV file and insert into the database."""
         if not files:
             return rx.toast.error("No file uploaded.", position="bottom-right")
-        
+
         file = files[0]
         content = await file.read()
         print("RAW CSV CONTENT:\n", content.decode('utf-8-sig'))
-        
+
         # Gunakan pandas untuk membaca CSV
         df = pd.read_csv(io.StringIO(content.decode('utf-8')))
-        
+
         # Cetak nama kolom untuk debugging
         print("CSV Columns:", df.columns.tolist())
         print(df.head())
-        
+
         # Pastikan kolom 'NIP' ada dalam data CSV
         if 'NIP' not in df.columns:
             return rx.toast.error("CSV file is missing 'NIP' column.", position="bottom-right")
-        
+
         current_month = self.current_month.month
         current_year = self.current_month.year
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         with rx.session() as session:
             for _, row in df.iterrows():
                 # Buat record pegawai baru atau dapatkan yang sudah ada
@@ -124,7 +124,10 @@ class State(rx.State):
                     session.add(employee)
                     session.commit()
                     session.refresh(employee)
-                
+
+                # Parse CSV date (jika ada); jika kosong, jadikan None
+                csv_date = row['Date'] if pd.notna(row['Date']) and str(row['Date']).strip() != "" else None
+
                 # Daftar deduction dan nilai dari CSV
                 deductions_values = {
                     "Arisan": int(row['Arisan']) if pd.notna(row['Arisan']) else None,
@@ -141,7 +144,7 @@ class State(rx.State):
                     ).first()
                     if not ded:
                         continue
-                    
+
                     # Periksa apakah ada entri yang sudah ada untuk pegawai ini, deduction ini, dan periode saat ini
                     ed = session.exec(
                         select(EmployeeDeduction).where(
@@ -151,16 +154,21 @@ class State(rx.State):
                             EmployeeDeduction.year == current_year
                         )
                     ).first()
-                    
+
                     if ed:
-                        # Perbarui entri yang sudah ada
-                        ed.amount = amount
-                        ed.payment_status = row['Status'] if row['Status'] in ['paid', 'unpaid', 'installment'] else 'unpaid'
-                        ed.payment_type = row['Type'] if row['Type'] in ['cash', 'transfer'] else None
-                        ed.updated_at = now_str
-                        session.add(ed)
+                        # Jika entri sudah ada, update hanya jika ada perubahan
+                        if ed.amount != amount or ed.payment_status != row['Status'] or ed.payment_type != row['Type']:
+                            ed.amount = amount
+                            ed.payment_status = row['Status'] if row['Status'] in ['paid', 'unpaid', 'installment'] else 'unpaid'
+                            ed.payment_type = row['Type'] if row['Type'] in ['cash', 'transfer'] else None
+                            # Jika CSV date tersedia, gunakan CSV date; jika kosong, jangan mengubah updated_at
+                            if csv_date is not None:
+                                ed.updated_at = csv_date
+                            ed.total_potongan = int(row['Total Potongan']) if pd.notna(row['Total Potongan']) else None
+                            session.add(ed)
                     else:
-                        # Buat entri baru jika tidak ada entri yang cocok
+                        # Untuk entri baru, gunakan CSV date jika ada; kalau tidak, set sebagai kosong ("")
+                        new_date = csv_date if csv_date is not None else ""
                         ed = EmployeeDeduction(
                             employee_id=employee.id,
                             deduction_id=ded.id,
@@ -169,8 +177,9 @@ class State(rx.State):
                             payment_type=row['Type'] if row['Type'] in ['cash', 'transfer'] else None,
                             month=current_month,
                             year=current_year,
-                            created_at=now_str,
-                            updated_at=now_str,
+                            created_at=new_date,
+                            updated_at=new_date,
+                            total_potongan=int(row['Total Potongan']) if pd.notna(row['Total Potongan']) else None,
                         )
                         session.add(ed)
             session.commit()
@@ -332,7 +341,6 @@ class State(rx.State):
             """
             
             try:
-                # result = session.execute(text(query))
                 result = session.execute(
                     text(query), 
                     {
@@ -400,7 +408,7 @@ class State(rx.State):
             # Update nilai agregat
             self.get_current_month_values()
             self.get_previous_month_values()
-        
+     
     def get_current_month_values(self):
         """Contoh perhitungan agregat untuk bulan ini."""
         now = datetime.now()
