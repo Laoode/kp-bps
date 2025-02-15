@@ -151,6 +151,9 @@ INSERT INTO deductions (name) VALUES
     ('Kredit Barang');
 
 
+-- Hapus Denda Arisan dari tabel deductions
+DELETE FROM deductions WHERE name = 'Denda Arisan';
+
 -- Cek data potongan untuk bulan ini
 SELECT 
     e.name,
