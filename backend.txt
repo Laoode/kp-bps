@@ -7,6 +7,7 @@ import calendar
 from typing import Union, List
 from sqlalchemy import text
 import reflex as rx
+from reflex import UploadFile
 from sqlmodel import Field, String, asc, cast, desc, func, or_, select
 
 # ---------------------------
@@ -87,6 +88,95 @@ class State(rx.State):
     limit: int = 10  # Jumlah baris per halaman
     
     current_month: datetime = datetime.now()  # Untuk tracking bulan aktif
+    
+    async def import_csv(self, files: List[UploadFile]) -> None:
+        """Import data from CSV file and insert into the database."""
+        if not files:
+            return rx.toast.error("No file uploaded.", position="bottom-right")
+        
+        file = files[0]
+        content = await file.read()
+        print("RAW CSV CONTENT:\n", content.decode('utf-8-sig'))
+        
+        # Gunakan pandas untuk membaca CSV
+        df = pd.read_csv(io.StringIO(content.decode('utf-8')))
+        
+        # Cetak nama kolom untuk debugging
+        print("CSV Columns:", df.columns.tolist())
+        print(df.head())
+        
+        # Pastikan kolom 'NIP' ada dalam data CSV
+        if 'NIP' not in df.columns:
+            return rx.toast.error("CSV file is missing 'NIP' column.", position="bottom-right")
+        
+        current_month = self.current_month.month
+        current_year = self.current_month.year
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        with rx.session() as session:
+            for _, row in df.iterrows():
+                # Buat record pegawai baru atau dapatkan yang sudah ada
+                employee = session.exec(
+                    select(Employee).where(Employee.nip == row['NIP'])
+                ).first()
+                if not employee:
+                    employee = Employee(name=row['Nama'], nip=row['NIP'])
+                    session.add(employee)
+                    session.commit()
+                    session.refresh(employee)
+                
+                # Daftar deduction dan nilai dari CSV
+                deductions_values = {
+                    "Arisan": int(row['Arisan']) if pd.notna(row['Arisan']) else None,
+                    "Iuran DW": int(row['Iuran DW']) if pd.notna(row['Iuran DW']) else None,
+                    "Simpanan Wajib Koperasi": int(row['Simpanan Wajib Koperasi']) if pd.notna(row['Simpanan Wajib Koperasi']) else None,
+                    "Belanja Koperasi": int(row['Belanja Koperasi']) if pd.notna(row['Belanja Koperasi']) else None,
+                    "Simpanan Pokok": int(row['Simpanan Pokok']) if pd.notna(row['Simpanan Pokok']) else None,
+                    "Kredit Khusus": int(row['Kredit Khusus']) if pd.notna(row['Kredit Khusus']) else None,
+                    "Kredit Barang": int(row['Kredit Barang']) if pd.notna(row['Kredit Barang']) else None,
+                }
+                for deduction_name, amount in deductions_values.items():
+                    ded = session.exec(
+                        select(Deduction).where(Deduction.name == deduction_name)
+                    ).first()
+                    if not ded:
+                        continue
+                    
+                    # Periksa apakah ada entri yang sudah ada untuk pegawai ini, deduction ini, dan periode saat ini
+                    ed = session.exec(
+                        select(EmployeeDeduction).where(
+                            EmployeeDeduction.employee_id == employee.id,
+                            EmployeeDeduction.deduction_id == ded.id,
+                            EmployeeDeduction.month == current_month,
+                            EmployeeDeduction.year == current_year
+                        )
+                    ).first()
+                    
+                    if ed:
+                        # Perbarui entri yang sudah ada
+                        ed.amount = amount
+                        ed.payment_status = row['Status'] if row['Status'] in ['paid', 'unpaid', 'installment'] else 'unpaid'
+                        ed.payment_type = row['Type'] if row['Type'] in ['cash', 'transfer'] else None
+                        ed.updated_at = now_str
+                        session.add(ed)
+                    else:
+                        # Buat entri baru jika tidak ada entri yang cocok
+                        ed = EmployeeDeduction(
+                            employee_id=employee.id,
+                            deduction_id=ded.id,
+                            amount=amount,
+                            payment_status=row['Status'] if row['Status'] in ['paid', 'unpaid', 'installment'] else 'unpaid',
+                            payment_type=row['Type'] if row['Type'] in ['cash', 'transfer'] else None,
+                            month=current_month,
+                            year=current_year,
+                            created_at=now_str,
+                            updated_at=now_str,
+                        )
+                        session.add(ed)
+            session.commit()
+        self.load_entries()
+        return rx.toast.info("CSV data has been imported successfully.", position="bottom-right")
+
     
     def download_table_data(self) -> None:
         """Generate and download table data as CSV for current month."""
