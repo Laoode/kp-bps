@@ -171,19 +171,43 @@ def add_employee_button() -> rx.Component:
         ),
     )
     
+# def upload_csv_button() -> rx.Component:
+#     """Button untuk mengunggah file CSV."""
+#     return rx.upload(
+#         rx.hstack(
+#             rx.icon("arrow-up-to-line", size=20),
+#             rx.text("Import"),
+#         ),
+#         id="upload_csv",
+#         accept=".csv",
+#         multiple=False,
+#         on_drop=State.import_csv(rx.upload_files(upload_id="upload_csv")),
+#         border="1px dotted rgb(107,99,246)",
+#         padding="1em",
+#     )
+
 def upload_csv_button() -> rx.Component:
-    """Button untuk mengunggah file CSV."""
+    """Button untuk mengunggah file CSV dengan UI yang lebih baik."""
     return rx.upload(
-        rx.hstack(
-            rx.icon("arrow-up-to-line", size=20),
-            rx.text("Import"),
+        rx.button(  # Gunakan button di dalam upload agar mirip tombol Export
+            rx.hstack(
+                rx.icon("arrow-up-to-line", size=20),
+                rx.text("Import"),
+            ),
+            size="3",
+            variant="surface",
+            color_scheme="yellow",  # Warna kuning sesuai permintaan
+            border_radius="8px",  # Membuat sudut lebih bulat
+            padding_x="1em",  # Padding kiri-kanan agar proporsional
+            padding_y="0.5em",  # Padding atas-bawah agar seimbang
         ),
         id="upload_csv",
         accept=".csv",
         multiple=False,
         on_drop=State.import_csv(rx.upload_files(upload_id="upload_csv")),
-        border="1px dotted rgb(107,99,246)",
-        padding="1em",
+        width="auto",  # Sesuaikan ukuran otomatis
+        border="none",  # Hilangkan border upload
+        padding="0",  # Hilangkan padding default
     )
     
 def update_employee_dialog(entry) -> rx.Component:
