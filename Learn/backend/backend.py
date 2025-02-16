@@ -251,15 +251,13 @@ class State(rx.State):
         # Write title
         month_name = calendar.month_name[self.current_month.month]
         year = self.current_month.year
-        writer.writerow([f'LIST OF COOPERATIVE DEDUCTIONS FOR THE MONTH OF {month_name} {year}'])
         writer.writerow([])  # Empty row for spacing
+        writer.writerow([f'DAFTAR POTONGAN KOPERASI DAN LAIN-LAIN BULAN {month_name.upper()} {year}'])
+        writer.writerow([])
         
         # Write employee info
-        writer.writerow(['Name', ':', entry.name])
-        writer.writerow([])  # Empty row for spacing
-        
-        # Write deductions header
-        writer.writerow(['Deductions:'])
+        writer.writerow([f'Nama         :', entry.name])
+        writer.writerow([f'Potongan   :'])
         
         # Define deductions and write them
         total_amount = 0
@@ -275,12 +273,12 @@ class State(rx.State):
         
         # Write deductions that have values
         for deduction_name, amount in deductions:
-            if amount:  # Only write if amount exists
-                writer.writerow(['', deduction_name, f'Rp {amount:,.2f}'.replace(',', '_').replace('.', ',').replace('_', '.')])
+            writer.writerow(['', deduction_name, f'{amount:,.0f}'.replace(',', '.')] if amount else ['', deduction_name, ''])
+            if amount:
                 total_amount += amount
         
-        writer.writerow([])  # Empty row for spacing
-        writer.writerow(['', 'Jumlah Potongan', f'Rp {total_amount:,.2f}'.replace(',', '_').replace('.', ',').replace('_', '.')])
+        writer.writerow(['', 'Total Potongan', f'{total_amount:,.0f}'.replace(',', '.')])
+        writer.writerow([]) 
         
         # Get the CSV data
         csv_data = output.getvalue()
