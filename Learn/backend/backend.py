@@ -241,7 +241,59 @@ class State(rx.State):
             data=csv_data,
             filename=filename,
         )
-    
+
+    def download_all_deduction_slips(self):
+        """Generate and download deduction slips for all employees."""
+        # Create string buffer
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        month_name = calendar.month_name[self.current_month.month]
+        year = self.current_month.year
+        
+        for entry in self.entries:
+            # Write title
+            writer.writerow([])  # Empty row for spacing
+            writer.writerow([f'DAFTAR POTONGAN KOPERASI DAN LAIN-LAIN BULAN {month_name.upper()} {year}'])
+            writer.writerow([])
+            
+            # Write employee info
+            writer.writerow([f'Nama         :', entry.name])
+            writer.writerow([f'Potongan   :'])
+            
+            # Define deductions and write them
+            total_amount = 0
+            deductions = [
+                ('Arisan', entry.arisan),
+                ('Iuran DW', entry.iuran_dw),
+                ('Simpanan Wajib Koperasi', entry.simpanan_wajib_koperasi),
+                ('Belanja Koperasi', entry.belanja_koperasi),
+                ('Simpanan Pokok', entry.simpanan_pokok),
+                ('Kredit Khusus', entry.kredit_khusus),
+                ('Kredit Barang', entry.kredit_barang),
+            ]
+            
+            # Write deductions that have values
+            for deduction_name, amount in deductions:
+                writer.writerow(['', deduction_name, f'{amount:,.0f}'.replace(',', '.')] if amount else ['', deduction_name, ''])
+                if amount:
+                    total_amount += amount
+            
+            writer.writerow(['', 'Total Potongan', f'{total_amount:,.0f}'.replace(',', '.')])
+            writer.writerow([])  # Empty row for spacing
+        
+        # Get the CSV data
+        csv_data = output.getvalue()
+        output.close()
+        
+        # Generate filename
+        filename = f"all_deduction_slips_{month_name}_{year}.csv"
+        
+        return rx.download(
+            data=csv_data,
+            filename=filename,
+        )
+
     def download_deduction_slip(self, entry: EmployeeDeductionEntry):
         """Generate and download deduction slip for an employee."""
         # Create string buffer

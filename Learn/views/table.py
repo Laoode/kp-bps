@@ -566,6 +566,16 @@ def main_table() -> rx.Component:
             ),
             rx.button(
                 rx.hstack(
+                    rx.icon("printer", size=20),
+                    rx.text("Print"),
+                ),
+                size="3",
+                color_scheme="sky",
+                variant="surface",
+                on_click=State.download_all_deduction_slips,
+            ),
+            rx.button(
+                rx.hstack(
                     rx.icon("arrow-down-to-line", size=20),
                     rx.text("Export"),
                 ),
