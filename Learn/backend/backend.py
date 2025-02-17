@@ -1,5 +1,6 @@
 import io
 import csv
+import re
 import pandas as pd
 from io import BytesIO
 from datetime import datetime, timedelta
@@ -89,8 +90,16 @@ class State(rx.State):
     
     current_month: datetime = datetime.now()  # Untuk tracking bulan aktif
     
+    def parse_int(self, value):
+        """Ekstrak angka dari string dan konversi ke integer."""
+        if pd.notna(value):  # Pastikan bukan NaN
+            numbers = re.findall(r'\d+', str(value))  # Ambil semua angka dari string
+            if numbers:  # Jika ada angka yang ditemukan
+                return int(''.join(numbers))  # Gabungkan dan konversi ke integer
+        return None  # Jika tidak ada angka, kembalikan None
+
     async def import_csv(self, files: List[UploadFile]) -> None:
-        """Import data from CSV file and insert into the database."""
+        """Import data dari file CSV dan masukkan ke dalam database."""
         if not files:
             return rx.toast.error("No file uploaded.", position="bottom-right")
 
@@ -98,14 +107,11 @@ class State(rx.State):
         content = await file.read()
         print("RAW CSV CONTENT:\n", content.decode('utf-8-sig'))
 
-        # Gunakan parameter thousands='.' agar angka seperti "110.000" diparsing menjadi 110000
         df = pd.read_csv(io.StringIO(content.decode('utf-8')), thousands='.')
-        
-        # Cetak nama kolom untuk debugging
+
         print("CSV Columns:", df.columns.tolist())
         print(df.head())
 
-        # Pastikan kolom 'NIP' ada dalam data CSV
         if 'NIP' not in df.columns:
             return rx.toast.error("CSV file is missing 'NIP' column.", position="bottom-right")
 
@@ -115,7 +121,6 @@ class State(rx.State):
 
         with rx.session() as session:
             for _, row in df.iterrows():
-                # Buat record pegawai baru atau dapatkan yang sudah ada
                 employee = session.exec(
                     select(Employee).where(Employee.nip == row['NIP'])
                 ).first()
@@ -125,19 +130,18 @@ class State(rx.State):
                     session.commit()
                     session.refresh(employee)
 
-                # Parse CSV date (jika ada); jika kosong, jadikan None
                 csv_date = row['Date'] if pd.notna(row['Date']) and str(row['Date']).strip() != "" else None
 
-                # Daftar deduction dan nilai dari CSV (nilai numerik sudah terkonversi karena thousands='.' digunakan)
                 deductions_values = {
-                    "Arisan": int(row['Arisan']) if pd.notna(row['Arisan']) else None,
-                    "Iuran DW": int(row['Iuran DW']) if pd.notna(row['Iuran DW']) else None,
-                    "Simpanan Wajib Koperasi": int(row['Simpanan Wajib Koperasi']) if pd.notna(row['Simpanan Wajib Koperasi']) else None,
-                    "Belanja Koperasi": int(row['Belanja Koperasi']) if pd.notna(row['Belanja Koperasi']) else None,
-                    "Simpanan Pokok": int(row['Simpanan Pokok']) if pd.notna(row['Simpanan Pokok']) else None,
-                    "Kredit Khusus": int(row['Kredit Khusus']) if pd.notna(row['Kredit Khusus']) else None,
-                    "Kredit Barang": int(row['Kredit Barang']) if pd.notna(row['Kredit Barang']) else None,
+                    "Arisan": self.parse_int(row['Arisan']),
+                    "Iuran DW": self.parse_int(row['Iuran DW']),
+                    "Simpanan Wajib Koperasi": self.parse_int(row['Simpanan Wajib Koperasi']),
+                    "Belanja Koperasi": self.parse_int(row['Belanja Koperasi']),
+                    "Simpanan Pokok": self.parse_int(row['Simpanan Pokok']),
+                    "Kredit Khusus": self.parse_int(row['Kredit Khusus']),
+                    "Kredit Barang": self.parse_int(row['Kredit Barang']),
                 }
+
                 for deduction_name, amount in deductions_values.items():
                     ded = session.exec(
                         select(Deduction).where(Deduction.name == deduction_name)
@@ -145,7 +149,6 @@ class State(rx.State):
                     if not ded:
                         continue
 
-                    # Periksa apakah ada entri yang sudah ada untuk pegawai ini, deduction ini, dan periode saat ini
                     ed = session.exec(
                         select(EmployeeDeduction).where(
                             EmployeeDeduction.employee_id == employee.id,
@@ -156,18 +159,15 @@ class State(rx.State):
                     ).first()
 
                     if ed:
-                        # Jika entri sudah ada, update hanya jika ada perubahan
                         if ed.amount != amount or ed.payment_status != row['Status'] or ed.payment_type != row['Type']:
                             ed.amount = amount
                             ed.payment_status = row['Status'] if row['Status'] in ['paid', 'unpaid', 'installment'] else 'unpaid'
                             ed.payment_type = row['Type'] if row['Type'] in ['cash', 'transfer'] else None
-                            # Jika CSV date tersedia, gunakan CSV date; jika tidak, biarkan nilai yang ada
                             if csv_date is not None:
                                 ed.updated_at = csv_date
-                            ed.total_potongan = int(row['Total Potongan']) if pd.notna(row['Total Potongan']) else None
+                            ed.total_potongan = self.parse_int(row['Total Potongan'])
                             session.add(ed)
                     else:
-                        # Untuk entri baru, gunakan CSV date jika ada; jika kosong, set sebagai kosong ("")
                         new_date = csv_date if csv_date is not None else ""
                         ed = EmployeeDeduction(
                             employee_id=employee.id,
@@ -179,14 +179,14 @@ class State(rx.State):
                             year=current_year,
                             created_at=new_date,
                             updated_at=new_date,
-                            total_potongan=int(row['Total Potongan']) if pd.notna(row['Total Potongan']) else None,
+                            total_potongan=self.parse_int(row['Total Potongan']),
                         )
                         session.add(ed)
             session.commit()
-        self.load_entries()
-        return rx.toast.info("CSV data has been imported successfully.", position="bottom-right")
 
-    
+        self.load_entries()
+        return rx.toast.info("CSV data has been imported successfully.", position="bottom-right")  
+
     def download_table_data(self) -> None:
         """Generate and download table data as CSV for current month."""
         # Create string buffer
