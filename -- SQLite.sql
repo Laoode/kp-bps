@@ -111,28 +111,30 @@ INSERT INTO employees (name, nip) VALUES
     ('Damara Utama, S.Tr.Stat', '199604182019011002'),
     ('Khaidir', '198105212007101002'),
     ('Muhammad Rizal Karim, SST', '199505252018021002'),
-    ('Junedi, SST, M.Si.', '198807182012111001'),
+    ('Evy Eriani', '197307032005022002'),
     ('Mochamad Wildan Maulana', '199904302022011003'),
     ('Muh. Arifiansyah Ayub, SST.', '199203162014121001'),
     ('Ridwan Kun Satria', '198009242011011006'),
     ('Wayan Permana Saputra, SST', '199303082014121001'),
     ('Suci Safitriani, SST', '199012162014102001'),
     ('Siti Rogayah, S.ST, M.S.E, M.P.P', '198708152009122005'),
+    ('Sudirman', '196801012006041035'),
     ('Riyanti', '197505272014062001'),
     ('Hasyuril Hadini, SE', '196704201992121001'),
     ('Musdin, SST.', '197304161993121001'),
     ('Towedy ML', '197203221999031004'),
     ('Suharjufito Endo, SST', '198612152009021005'),
-    ('Irfan SaputrI', '198806142011012014'),
+    ('Irfan Saputri', '198806142011012014'),
     ('Abd. Jalil', '7471021204900002'),
     ('Fitri', '7471085108840001'),
-    ('Nur', '7471021204900002'),
+    ('Nur', '197506112002122003'),
     ('Putu Suweda', '7405191001910001'),
     ('Mat Asdi', '7471041202700001'),
     ('Ardin', '7471050206880002'),
     ('Arby', '7471020602910001'),
     ('Ifan Ansari', '7471091307800001'),
-    ('Masdiana', '5371066709910001');
+    ('Masdiana', '5371066709910001'),
+    ('Muhammad Hafif Fudin', '7405030209020001');
 
 
 
@@ -142,7 +144,6 @@ INSERT INTO employees (name, nip) VALUES
 
 INSERT INTO deductions (name) VALUES
     ('Arisan'),
-    ('Denda Arisan'),
     ('Iuran DW'),
     ('Simpanan Wajib Koperasi'),
     ('Belanja Koperasi'),
@@ -150,9 +151,6 @@ INSERT INTO deductions (name) VALUES
     ('Kredit Khusus'),
     ('Kredit Barang');
 
-
--- Hapus Denda Arisan dari tabel deductions
-DELETE FROM deductions WHERE name = 'Denda Arisan';
 
 -- Hapus semua data dari tabel employee_deductions
 DELETE FROM employee_deductions;
@@ -162,3 +160,9 @@ DELETE FROM employees;
 
 -- Hapus table employees
 DROP TABLE employees;
+
+-- Hapus table deductions
+DROP TABLE deductions;
+
+-- Hapus table employee_deductions
+DROP TABLE employee_deductions;

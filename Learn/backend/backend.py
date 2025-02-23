@@ -5,7 +5,7 @@ import pandas as pd
 from io import BytesIO
 from datetime import datetime, timedelta
 import calendar
-from typing import Union, List
+from typing import Union, List, Dict, Any
 from sqlalchemy import text
 import reflex as rx
 from reflex import UploadFile
@@ -70,6 +70,7 @@ class MonthValues(rx.Base):
     total_payments: int = 10000  # jika diperlukan, misalnya total dari salah satu kolom
 
 
+
 class State(rx.State):
     """State aplikasi yang diperbarui untuk menangani data EmployeeDeduction."""
     # Daftar entry hasil join/pivot (untuk front end)
@@ -89,14 +90,164 @@ class State(rx.State):
     limit: int = 10  # Jumlah baris per halaman
     
     current_month: datetime = datetime.now()  # Untuk tracking bulan aktif
+
+    # @rx.var(cache=True)
+    # def get_deduction_data_last_12_months(self) -> List[Dict[str, Any]]:
+    #     """Mengambil data potongan dari database untuk 12 bulan terakhir."""
+    #     with rx.session() as session:
+    #         current_month = datetime.now().month
+    #         current_year = datetime.now().year
+    #         query = text("""
+    #             SELECT 
+    #                 month,
+    #                 year,
+    #                 SUM(CASE WHEN d.name = 'Arisan' THEN ed.amount ELSE 0 END) AS arisan,
+    #                 SUM(CASE WHEN d.name = 'Iuran DW' THEN ed.amount ELSE 0 END) AS iuran_dw,
+    #                 SUM(CASE WHEN d.name = 'Simpanan Wajib Koperasi' THEN ed.amount ELSE 0 END) AS simpanan_wajib_koperasi,
+    #                 SUM(CASE WHEN d.name = 'Belanja Koperasi' THEN ed.amount ELSE 0 END) AS belanja_koperasi,
+    #                 SUM(CASE WHEN d.name = 'Simpanan Pokok' THEN ed.amount ELSE 0 END) AS simpanan_pokok,
+    #                 SUM(CASE WHEN d.name = 'Kredit Khusus' THEN ed.amount ELSE 0 END) AS kredit_khusus,
+    #                 SUM(CASE WHEN d.name = 'Kredit Barang' THEN ed.amount ELSE 0 END) AS kredit_barang
+    #             FROM employee_deductions ed
+    #             JOIN deductions d ON ed.deduction_id = d.id
+    #             WHERE (year = :current_year AND month <= :current_month)
+    #                OR (year = :previous_year AND month > :current_month)
+    #             GROUP BY month, year
+    #             ORDER BY year, month
+    #         """)
+    #         result = session.execute(query, {
+    #             "current_year": current_year,
+    #             "current_month": current_month,
+    #             "previous_year": current_year - 1
+    #         }).fetchall()
+    #         data = [
+    #             {
+    #                 "month": f"{row[0]}-{row[1]}",
+    #                 "Arisan": row[2],
+    #                 "Iuran DW": row[3],
+    #                 "Simpanan Wajib Koperasi": row[4],
+    #                 "Belanja Koperasi": row[5],
+    #                 "Simpanan Pokok": row[6],
+    #                 "Kredit Khusus": row[7],
+    #                 "Kredit Barang": row[8],
+    #             }
+    #             for row in result
+    #         ]
+    #         return data
     
+    @rx.var(cache=True)
+    def get_deduction_data_last_12_months(self) -> List[Dict[str, Any]]:
+        """Mengambil data potongan dari database untuk 12 bulan terakhir."""
+        with rx.session() as session:
+            current_month = datetime.now().month
+            current_year = datetime.now().year
+            
+            # Debug: Print current period
+            print(f"\nQuerying data for period: {current_month}/{current_year}")
+            
+            query = text("""
+                WITH monthly_totals AS (
+                    SELECT 
+                        ed.month,
+                        ed.year,
+                        d.name as deduction_name,
+                        SUM(ed.amount) as total_amount
+                    FROM employee_deductions ed
+                    JOIN deductions d ON ed.deduction_id = d.id
+                    WHERE (year = :current_year AND month <= :current_month)
+                    OR (year = :previous_year AND month > :current_month)
+                    GROUP BY ed.month, ed.year, d.name
+                )
+                SELECT 
+                    month,
+                    year,
+                    SUM(CASE WHEN deduction_name = 'Arisan' THEN total_amount ELSE 0 END) AS arisan,
+                    SUM(CASE WHEN deduction_name = 'Iuran DW' THEN total_amount ELSE 0 END) AS iuran_dw,
+                    SUM(CASE WHEN deduction_name = 'Simpanan Wajib Koperasi' THEN total_amount ELSE 0 END) AS simpanan_wajib_koperasi,
+                    SUM(CASE WHEN deduction_name = 'Belanja Koperasi' THEN total_amount ELSE 0 END) AS belanja_koperasi,
+                    SUM(CASE WHEN deduction_name = 'Simpanan Pokok' THEN total_amount ELSE 0 END) AS simpanan_pokok,
+                    SUM(CASE WHEN deduction_name = 'Kredit Khusus' THEN total_amount ELSE 0 END) AS kredit_khusus,
+                    SUM(CASE WHEN deduction_name = 'Kredit Barang' THEN total_amount ELSE 0 END) AS kredit_barang
+                FROM monthly_totals
+                GROUP BY month, year
+                ORDER BY year, month
+            """)
+            
+            result = session.execute(query, {
+                "current_year": current_year,
+                "current_month": current_month,
+                "previous_year": current_year - 1
+            }).fetchall()
+
+            # Debug: Print raw results
+            print("\nRaw query results:")
+            for row in result:
+                print(f"\nMonth: {row[0]}-{row[1]}")
+                print(f"Arisan: {row[2]}")
+                print(f"Iuran DW: {row[3]}")
+                print(f"Simpanan Wajib Koperasi: {row[4]}")
+                print(f"Belanja Koperasi: {row[5]}")
+                print(f"Simpanan Pokok: {row[6]}")
+                print(f"Kredit Khusus: {row[7]}")
+                print(f"Kredit Barang: {row[8]}")
+
+            data = [
+                {
+                    "month": f"{row[0]}-{row[1]}",
+                    "Arisan": row[2],
+                    "Iuran DW": row[3],
+                    "Simpanan Wajib Koperasi": row[4],
+                    "Belanja Koperasi": row[5],
+                    "Simpanan Pokok": row[6],
+                    "Kredit Khusus": row[7],
+                    "Kredit Barang": row[8],
+                }
+                for row in result
+            ]
+
+            # Debug: Print formatted data
+            print("\nFormatted data for chart:")
+            for entry in data:
+                print(f"\nMonth: {entry['month']}")
+                for key, value in entry.items():
+                    if key != 'month':
+                        print(f"{key}: {value}")
+
+            return data
+        
     def parse_int(self, value):
-        """Ekstrak angka dari string dan konversi ke integer."""
-        if pd.notna(value):  # Pastikan bukan NaN
-            numbers = re.findall(r'\d+', str(value))  # Ambil semua angka dari string
-            if numbers:  # Jika ada angka yang ditemukan
-                return int(''.join(numbers))  # Gabungkan dan konversi ke integer
-        return None  # Jika tidak ada angka, kembalikan None
+        """
+        Converts the input to an integer.
+        
+        If input is a string, this function removes any character that is not 
+        a digit (e.g., thousand separators or stray letters).
+        If the string becomes empty after cleaning, or if value is None,
+        the function returns None rather than 0.
+        
+        Args:
+            value (str, int, or None): The input value to convert.
+        
+        Returns:
+            int or None: The converted integer, or None if conversion is not possible.
+        """
+        # Handle None input: do not convert to 0, return None.
+        if value is None:
+            return None
+
+        # If the value is a string, remove any non-digit characters
+        if isinstance(value, str):
+            # Remove any character that is not a digit
+            cleaned = re.sub(r'[^\d]', '', value)
+            # If the cleaned string is empty, return None
+            if cleaned == "":
+                return None
+        else:
+            cleaned = value
+
+        try:
+            return int(cleaned)
+        except (TypeError, ValueError):
+            return None
 
     async def import_csv(self, files: List[UploadFile]) -> None:
         """Import data dari file CSV dan masukkan ke dalam database."""
