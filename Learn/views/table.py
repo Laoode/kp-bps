@@ -3,6 +3,8 @@ import reflex as rx
 from ..backend.backend import State,EmployeeDeductionEntry  # Asumsi State menyediakan method load_entries, add_employee_entry, dll.
 from ..components.form_field import form_field
 from ..components.status_badges import status_badge
+from ..components.navbar import navbar
+from ..components.sidebar import sidebar
 
 class Table(rx.State):
     color_map: dict[str,str]={

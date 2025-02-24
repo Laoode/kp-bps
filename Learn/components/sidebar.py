@@ -1,7 +1,7 @@
 """Sidebar component for the app."""
 
 import reflex as rx
-
+from Learn.states import State, LoginState, Authentication
 from .. import styles
 
 
@@ -10,13 +10,17 @@ def sidebar_header() -> rx.Component:
 
     Returns:
         The sidebar header component.
-
     """
     return rx.hstack(
         # The logo.
-        rx.color_mode_cond(
-            rx.image(src="/reflex_black.svg", height="1.5em"),
-            rx.image(src="/reflex_white.svg", height="1.5em"),
+        rx.badge(
+            rx.icon(tag="layout-dashboard", size=16),
+            rx.heading("Dashboard Analytics", size="3"),
+            color_scheme="green",
+            radius="large",
+            align="center",
+            variant="surface",
+            padding="0.65rem",
         ),
         rx.spacer(),
         align="center",
@@ -27,24 +31,12 @@ def sidebar_header() -> rx.Component:
 
 
 def sidebar_footer() -> rx.Component:
-    """Sidebar footer.
-
-    Returns:
-        The sidebar footer component.
-
-    """
     return rx.hstack(
-        rx.link(
-            rx.text("Docs", size="3"),
-            href="https://reflex.dev/docs/getting-started/introduction/",
-            color_scheme="gray",
-            underline="none",
-        ),
-        rx.link(
-            rx.text("Blog", size="3"),
-            href="https://reflex.dev/blog/",
-            color_scheme="gray",
-            underline="none",
+        rx.button(
+            "Logout",
+            on_click=Authentication.handle_logout,
+            color_scheme="crimson",
+            cursor="pointer",
         ),
         rx.spacer(),
         rx.color_mode.button(style={"opacity": "0.8", "scale": "0.95"}),
@@ -68,11 +60,10 @@ def sidebar_item(text: str, url: str) -> rx.Component:
 
     Returns:
         rx.Component: The sidebar item component.
-
     """
     # Whether the item is active.
     active = (rx.State.router.page.path == url.lower()) | (
-        (rx.State.router.page.path == "/") & text == "Overview"
+        (rx.State.router.page.path == "/") & (text == "Overview")
     )
 
     return rx.link(
@@ -81,9 +72,7 @@ def sidebar_item(text: str, url: str) -> rx.Component:
                 text,
                 ("Overview", sidebar_item_icon("home")),
                 ("Table", sidebar_item_icon("table-2")),
-                ("About", sidebar_item_icon("book-open")),
-                ("Profile", sidebar_item_icon("user")),
-                ("Settings", sidebar_item_icon("settings")),
+                ("Admin", sidebar_item_icon("user")),
                 sidebar_item_icon("layout-dashboard"),
             ),
             rx.text(text, size="3", weight="regular"),
@@ -129,32 +118,20 @@ def sidebar() -> rx.Component:
 
     Returns:
         The sidebar component.
-
     """
-    # Get all the decorated pages and add them to the sidebar.
-    from reflex.page import get_decorated_pages
-
     # The ordered page routes.
     ordered_page_routes = [
         "/",
         "/table",
-        "/about",
-        "/profile",
-        "/settings",
+        "/admin",
     ]
 
-    # Get the decorated pages.
-    pages = get_decorated_pages()
-
-    # Include all pages even if they are not in the ordered_page_routes.
-    ordered_pages = sorted(
-        pages,
-        key=lambda page: (
-            ordered_page_routes.index(page["route"])
-            if page["route"] in ordered_page_routes
-            else len(ordered_page_routes)
-        ),
-    )
+    # The page titles
+    page_titles = {
+        "/": "Overview",
+        "/table": "Table",
+        "/admin": "Admin",
+    }
 
     return rx.flex(
         rx.vstack(
@@ -162,10 +139,10 @@ def sidebar() -> rx.Component:
             rx.vstack(
                 *[
                     sidebar_item(
-                        text=page.get("title", page["route"].strip("/").capitalize()),
-                        url=page["route"],
+                        text=page_titles[route],
+                        url=route,
                     )
-                    for page in ordered_pages
+                    for route in ordered_page_routes
                 ],
                 spacing="1",
                 width="100%",

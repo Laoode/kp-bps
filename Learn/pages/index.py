@@ -62,7 +62,7 @@ def index() -> rx.Component:
                 tab_content_header(),
                 rx.segmented_control.root(
                     rx.segmented_control.item("Arisan", value="arisan"),
-                    rx.segmented_control.item("Iuran", value="iuran_dw"),
+                    rx.segmented_control.item("Iuran DW", value="iuran_dw"),
                     rx.segmented_control.item("S. Wajib", value="simpanan_wajib_koperasi"),
                     rx.segmented_control.item("B. Koperasi", value="belanja_koperasi"),
                     rx.segmented_control.item("S. Pokok", value="simpanan_pokok"),
