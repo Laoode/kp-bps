@@ -15,7 +15,7 @@ def sidebar_header() -> rx.Component:
         # The logo.
         rx.badge(
             rx.icon(tag="layout-dashboard", size=16),
-            rx.heading("Dashboard Analytics", size="3"),
+            rx.heading("Deductions Analytics", size="3"),
             color_scheme="green",
             radius="large",
             align="center",

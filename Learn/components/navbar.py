@@ -165,7 +165,7 @@ def navbar() -> rx.Component:
             rx.hstack(
                 rx.badge(
                     rx.icon(tag="layout-dashboard", size=28),
-                    rx.heading("Dashboard Analytics", size="6"),
+                    rx.heading("Deductions Analytics", size="6"),
                     color_scheme="green",
                     radius="large",
                     align="center",
@@ -178,7 +178,7 @@ def navbar() -> rx.Component:
             rx.spacer(),
             menu_button(),
             width="100%",
-            justify="between",
+            justify="end",
             align="center",
             padding_y="1.25em",
             padding_x=["1.5em", "1.5em", "2em"],
