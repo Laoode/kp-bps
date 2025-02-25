@@ -15,7 +15,8 @@ from ..views.charts import (
     simpanan_pokok_chart,
     kredit_khusus_chart,
     kredit_barang_chart,
-    
+    timeframe_select,
+    pie_chart,
 )
 
 def _time_data() -> rx.Component:
@@ -85,6 +86,40 @@ def index() -> rx.Component:
                 ("kredit_khusus", kredit_khusus_chart()),
                 ("kredit_barang", kredit_barang_chart()),
             ),
+        ),
+        rx.grid(
+            card(
+                rx.hstack(
+                    rx.hstack(
+                        rx.icon("banknote", size=20),
+                        rx.text("Payment Status Overview", size="4", weight="medium"),
+                        align="center",
+                        spacing="2",
+                    ),
+                    align="center",
+                    width="100%",
+                    justify="between",
+                ),
+                pie_chart(),
+            ),
+            # Card kosong untuk visualisasi lain
+            card(
+                rx.hstack(
+                    rx.icon("globe", size=20),
+                    rx.text("Other Visualization", size="4", weight="medium"),
+                    align="center",
+                    spacing="2",
+                ),
+            ),
+            gap="1rem",
+            grid_template_columns=[
+                "1fr",
+                "repeat(1, 1fr)",
+                "repeat(2, 1fr)",
+                "repeat(2, 1fr)",
+                "repeat(2, 1fr)",
+            ],
+            width="100%",
         ),
         spacing="8",
         width="100%",

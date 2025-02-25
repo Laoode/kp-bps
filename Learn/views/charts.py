@@ -9,8 +9,7 @@ from reflex.components.radix.themes.base import (
 class StatsState(rx.State):
     area_toggle: bool = True
     selected_tab: str = "arisan"
-    timeframe: str = "Monthly"
-    yearly_device_data = []
+    # timeframe: str = "Monthly"
 
     @rx.event
     def set_selected_tab(self, tab: str | list[str]):
@@ -19,6 +18,7 @@ class StatsState(rx.State):
     @rx.event
     def toggle_areachart(self):
         self.area_toggle = not self.area_toggle
+        
 
 def area_toggle() -> rx.Component:
     return rx.cond(
@@ -457,4 +457,33 @@ def kredit_barang_chart() -> rx.Component:
             data=data,
             height=425,
         ),
+    )
+
+
+def timeframe_select() -> rx.Component:
+    return rx.select(
+        ["Monthly", "Yearly"],
+        default_value="Monthly",
+        value=State.timeframe,
+        variant="surface",
+        on_change=State.set_timeframe,
+    )
+    
+def pie_chart() -> rx.Component:
+    return rx.recharts.pie_chart(
+        rx.recharts.pie(
+            data=State.payment_status_data,
+            data_key="value",
+            name_key="name",
+            cx="50%",
+            cy="50%",
+            padding_angle=2,
+            inner_radius="60%",
+            outer_radius="80%",
+            label=True,
+        ),
+        rx.recharts.graphing_tooltip(),
+        rx.recharts.legend(),
+        width="100%",
+        height=300,
     )

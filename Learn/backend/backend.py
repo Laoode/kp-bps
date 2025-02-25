@@ -90,50 +90,67 @@ class State(rx.State):
     limit: int = 10  # Jumlah baris per halaman
     
     current_month: datetime = datetime.now()  # Untuk tracking bulan aktif
+    timeframe: str = "Monthly"
+    
+    @rx.event
+    def set_timeframe(self, value: str):
+        self.timeframe = value
+    
+    def get_payment_status_data(self) -> list:
+        """Get payment status data."""
+        with rx.session() as session:
+            current_date = datetime.now()
 
-    # @rx.var(cache=True)
-    # def get_deduction_data_last_12_months(self) -> List[Dict[str, Any]]:
-    #     """Mengambil data potongan dari database untuk 12 bulan terakhir."""
-    #     with rx.session() as session:
-    #         current_month = datetime.now().month
-    #         current_year = datetime.now().year
-    #         query = text("""
-    #             SELECT 
-    #                 month,
-    #                 year,
-    #                 SUM(CASE WHEN d.name = 'Arisan' THEN ed.amount ELSE 0 END) AS arisan,
-    #                 SUM(CASE WHEN d.name = 'Iuran DW' THEN ed.amount ELSE 0 END) AS iuran_dw,
-    #                 SUM(CASE WHEN d.name = 'Simpanan Wajib Koperasi' THEN ed.amount ELSE 0 END) AS simpanan_wajib_koperasi,
-    #                 SUM(CASE WHEN d.name = 'Belanja Koperasi' THEN ed.amount ELSE 0 END) AS belanja_koperasi,
-    #                 SUM(CASE WHEN d.name = 'Simpanan Pokok' THEN ed.amount ELSE 0 END) AS simpanan_pokok,
-    #                 SUM(CASE WHEN d.name = 'Kredit Khusus' THEN ed.amount ELSE 0 END) AS kredit_khusus,
-    #                 SUM(CASE WHEN d.name = 'Kredit Barang' THEN ed.amount ELSE 0 END) AS kredit_barang
-    #             FROM employee_deductions ed
-    #             JOIN deductions d ON ed.deduction_id = d.id
-    #             WHERE (year = :current_year AND month <= :current_month)
-    #                OR (year = :previous_year AND month > :current_month)
-    #             GROUP BY month, year
-    #             ORDER BY year, month
-    #         """)
-    #         result = session.execute(query, {
-    #             "current_year": current_year,
-    #             "current_month": current_month,
-    #             "previous_year": current_year - 1
-    #         }).fetchall()
-    #         data = [
-    #             {
-    #                 "month": f"{row[0]}-{row[1]}",
-    #                 "Arisan": row[2],
-    #                 "Iuran DW": row[3],
-    #                 "Simpanan Wajib Koperasi": row[4],
-    #                 "Belanja Koperasi": row[5],
-    #                 "Simpanan Pokok": row[6],
-    #                 "Kredit Khusus": row[7],
-    #                 "Kredit Barang": row[8],
-    #             }
-    #             for row in result
-    #         ]
-    #         return data
+            if self.timeframe == "Monthly":
+                query = """
+                    SELECT 
+                        COALESCE(payment_status, 'Unknown') as status,
+                        COUNT(DISTINCT employee_id) as count
+                    FROM employee_deductions
+                    WHERE month = :month AND year = :year
+                    GROUP BY payment_status
+                """
+                params = {"month": current_date.month, "year": current_date.year}
+            else:  # Yearly
+                query = """
+                    SELECT 
+                        COALESCE(payment_status, 'Unknown') as status,
+                        COUNT(DISTINCT employee_id) as count
+                    FROM employee_deductions
+                    WHERE year = :year
+                    GROUP BY payment_status
+                """
+                params = {"year": current_date.year}
+
+            result = session.execute(text(query), params).fetchall()
+
+            # Mapping warna untuk setiap status pembayaran
+            color_mapping = {
+                "paid": "var(--jade-8)",        # Warna biru
+                "unpaid": "var(--tomato-8)",       # Warna merah
+                "installment": "var(--yellow-8)" # Warna ungu
+            }
+
+            # Pastikan semua status ada dalam data
+            status_counts = {row[0]: row[1] for row in result}
+            default_statuses = ["paid", "unpaid", "installment"]
+
+            data = []
+            for status in default_statuses:
+                count = status_counts.get(status, 0)
+                data.append({
+                    "name": status.capitalize(),
+                    "value": count,
+                    "fill": color_mapping.get(status, "var(--gray-8)")  # Default warna abu-abu jika tidak ditemukan
+                })
+
+            return data
+
+    @rx.var
+    def payment_status_data(self) -> list:
+        """Data untuk pie chart payment status."""
+        return self.get_payment_status_data()
+
     
     @rx.var(cache=True)
     def get_deduction_data_last_12_months(self) -> List[Dict[str, Any]]:
