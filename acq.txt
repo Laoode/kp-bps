@@ -1,0 +1,125 @@
+import reflex as rx
+from reflex.components.radix.themes.base import LiteralAccentColor
+from ..backend.backend import State
+from datetime import datetime
+
+def bar_item(month_name: str, amount: int, max_amount: int, color: str = "green") -> rx.Component:
+    """Create a horizontal bar item showing month and amount."""
+    # Pre-calculate width percentage
+    width_pct = "0%"
+    try:
+        if isinstance(max_amount, (int, float)) and max_amount > 0:
+            width_pct = f"{min(100, (amount/max_amount)*100)}%"
+    except:
+        pass
+        
+    return rx.hstack(
+        rx.text(
+            month_name,
+            size="3",
+            weight="medium",
+            color="gray",
+            width="60px",
+        ),
+        rx.flex(
+            rx.box(
+                rx.text(
+                    f"Rp {amount:,}".replace(',', '.'),
+                    color="white",
+                    size="2",
+                    padding_x="2",
+                ),
+                bg=color,
+                border_radius="5px",
+                width=width_pct,
+                min_width="50px",
+                height="30px",
+                display="flex",
+                align_items="center",
+            ),
+            width="100%",
+            bg="gray.100",
+            border_radius="5px",
+        ),
+        width="100%",
+        spacing="4",
+        align="center",
+        py="1",
+    )
+
+def acquisition() -> rx.Component:
+    """Monthly deductions visualization component."""
+    return rx.vstack(
+        # Header section
+        rx.hstack(
+            rx.heading("Recap Employees", size="4"),
+            rx.text(State.selected_employee_name, color="green", as_="span"),
+            width="100%",
+            justify="between",
+        ),
+        # Control section
+        rx.hstack(
+            rx.hstack(
+                rx.input(
+                    placeholder="Search here...",
+                    width="300px",
+                    value=State.search_value,
+                    on_change=State.set_search_value,
+                ),
+                rx.button(
+                    rx.icon("search"),
+                    on_click=State.search_employee,
+                    variant="outline",
+                ),
+                spacing="2",
+            ),
+            rx.spacer(),
+            # Deduction type selector and month navigation
+            rx.hstack(
+                rx.button("<", on_click=State.prev_month),
+                rx.select(
+                    ["Arisan", "Iuran DW", "Simpanan Wajib", "Belanja Koperasi", 
+                     "Simpanan Pokok", "Kredit Khusus", "Kredit Barang"],
+                    placeholder="Deductions",
+                    default_value="Arisan",
+                    color_scheme="green",
+                    on_change=State.set_selected_deduction,
+                ),
+                rx.button(">", on_click=State.next_month),
+                spacing="2",
+            ),
+            width="100%",
+            spacing="2",
+        ),
+        # Bar chart section
+        rx.vstack(
+            rx.cond(
+                State.get_monthly_data,  # Langsung gunakan variabel sebagai kondisi
+                rx.foreach(
+                    State.get_monthly_data,
+                    lambda item: bar_item(
+                        month_name=item["month_name"],
+                        amount=item["amount"],
+                        max_amount=State.get_max_amount,
+                        color="green.400"
+                    ),
+                ),
+                rx.text("No data available")  # Fallback when no data
+            ),
+            width="100%",
+            spacing="4",
+            align="stretch",
+        ),
+        # Month navigation footer
+        rx.hstack(
+            rx.text(State.current_month_display),  # Gunakan var baru
+            spacing="2",
+            width="100%",
+            justify="center",
+        ),
+        width="100%",
+        border="1px solid #e2e8f0",
+        border_radius="10px",
+        padding="4",
+        spacing="4",
+    )

@@ -92,6 +92,171 @@ class State(rx.State):
     current_month: datetime = datetime.now()  # Untuk tracking bulan aktif
     timeframe: str = "Monthly"
     
+    # Tambahkan state variables baru
+    selected_employee_id: int = 1
+    selected_deduction: str = "Arisan"  # Default deduction
+    current_page_month: int = 1  # 1 untuk Jan-Jun, 2 untuk Jul-Dec
+    nip_input: str = ""  # Untuk input NIP
+    monthly_data: List[Dict[str, Any]] = []
+    
+    @rx.var(cache=True)
+    def is_nip_valid(self) -> bool:
+        """Check if NIP input is not empty."""
+        return bool(self.nip_input.strip())
+
+    @rx.var(cache=True)
+    def selected_employee_name(self) -> str:
+        """Get name of selected employee."""
+        with rx.session() as session:
+            employee = session.exec(
+                select(Employee).where(Employee.id == self.selected_employee_id)
+            ).first()
+            return employee.name if employee else ""
+        
+    def on_mount(self) -> None:
+        """Initialize state when component mounts."""
+        with rx.session() as session:
+            try:
+                first_employee = session.exec(
+                    select(Employee).order_by(Employee.id.asc()).limit(1)
+                ).first()
+                
+                if first_employee:
+                    print(f"Found first employee: {first_employee.name}")
+                    self.selected_employee_id = first_employee.id
+                    # Explicitly set the selected_deduction to ensure it's initialized
+                    self.selected_deduction = "Arisan"
+                    # Update monthly_data with fetched data
+                    self.monthly_data = self._fetch_monthly_data()
+                    print(f"Initial monthly_data: {self.monthly_data}")
+                    
+            except Exception as e:
+                print(f"Error in on_mount: {e}")
+
+    @rx.event
+    def search_employee(self):
+        """Search employee by NIP."""
+        if not self.nip_input:
+            return
+        
+        with rx.session() as session:
+            employee = session.exec(
+                select(Employee).where(Employee.nip == self.nip_input)
+            ).first()
+            if employee:
+                self.selected_employee_id = employee.id
+                self.monthly_data = self._fetch_monthly_data()
+                # Clear input after successful search
+                self.nip_input = ""
+            else:
+                return rx.toast.error("Employee not found!", position="bottom-right")
+
+    def _fetch_monthly_data(self) -> List[Dict[str, Any]]:
+        """Internal function untuk mengambil data bulanan."""
+        if not self.selected_employee_id:
+            return []
+        
+        print(f"Getting data for employee_id: {self.selected_employee_id}")
+        print(f"Selected deduction: {self.selected_deduction}")
+
+        with rx.session() as session:
+            year = self.current_month.year
+            if self.current_page_month == 1:
+                start_month, end_month = 1, 6
+            else:
+                start_month, end_month = 7, 12
+
+            query = text("""
+                SELECT 
+                    ed.month,
+                    SUM(ed.amount) as total_amount
+                FROM employee_deductions ed
+                JOIN deductions d ON ed.deduction_id = d.id
+                WHERE ed.employee_id = :employee_id
+                AND d.name = :deduction_name
+                AND ed.year = :year
+                AND ed.month BETWEEN :start_month AND :end_month
+                GROUP BY ed.month
+                ORDER BY ed.month
+            """)
+
+            result = session.execute(
+                query,
+                {
+                    "employee_id": self.selected_employee_id,
+                    "deduction_name": self.selected_deduction,
+                    "year": year,
+                    "start_month": start_month,
+                    "end_month": end_month
+                }
+            ).fetchall()
+
+            data_dict = {row[0]: row[1] for row in result}
+            
+            return [
+                {
+                    "month": self.month_name(month),
+                    "amount": data_dict.get(month, 0)
+                }
+                for month in range(start_month, end_month + 1)
+            ]
+
+    @rx.event
+    def set_selected_deduction(self, value: str):
+        """Update selected deduction type."""
+        self.selected_deduction = value
+        self.monthly_data = self._fetch_monthly_data()
+        print(f"Deduction changed to: {value}, data updated")
+        
+    @rx.event
+    def refresh_chart_data(self):
+        """Helper event to explicitly refresh chart data."""
+        self.monthly_data = self._fetch_monthly_data()
+        print("Chart data manually refreshed")
+
+    @rx.var(cache=True)
+    def month_page_display(self) -> str:
+        """Get current month page display text."""
+        year = self.current_month.year
+        if self.current_page_month == 1:
+            return f"Jan-Jun {year}"
+        return f"Jul-Dec {year}"
+
+    @rx.event
+    def next_month_page(self):
+        """Move to next 6 months."""
+        if self.current_page_month == 1:
+            self.current_page_month = 2
+        else:
+            self.current_month = self.current_month.replace(year=self.current_month.year + 1)
+            self.current_page_month = 1
+        self.monthly_data = self._fetch_monthly_data()
+
+    @rx.event
+    def prev_month_page(self):
+        """Move to previous 6 months."""
+        if self.current_page_month == 2:
+            self.current_page_month = 1
+        else:
+            self.current_month = self.current_month.replace(year=self.current_month.year - 1)
+            self.current_page_month = 2
+        self.monthly_data = self._fetch_monthly_data()
+
+    def month_name(self, month: int) -> str:
+        """Convert month number to abbreviated name."""
+        months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
+                 "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+        return months[month - 1]
+
+    # Placeholder functions for download buttons
+    @rx.event
+    def download_employee_recap(self):
+        pass
+
+    @rx.event
+    def download_all_recap(self):
+        pass
+    
     @rx.event
     def set_timeframe(self, value: str):
         self.timeframe = value
@@ -146,7 +311,7 @@ class State(rx.State):
 
             return data
 
-    @rx.var
+    @rx.var(cache=True)
     def payment_status_data(self) -> list:
         """Data untuk pie chart payment status."""
         return self.get_payment_status_data()
@@ -158,9 +323,6 @@ class State(rx.State):
         with rx.session() as session:
             current_month = datetime.now().month
             current_year = datetime.now().year
-            
-            # Debug: Print current period
-            print(f"\nQuerying data for period: {current_month}/{current_year}")
             
             query = text("""
                 WITH monthly_totals AS (
@@ -196,18 +358,6 @@ class State(rx.State):
                 "previous_year": current_year - 1
             }).fetchall()
 
-            # Debug: Print raw results
-            print("\nRaw query results:")
-            for row in result:
-                print(f"\nMonth: {row[0]}-{row[1]}")
-                print(f"Arisan: {row[2]}")
-                print(f"Iuran DW: {row[3]}")
-                print(f"Simpanan Wajib Koperasi: {row[4]}")
-                print(f"Belanja Koperasi: {row[5]}")
-                print(f"Simpanan Pokok: {row[6]}")
-                print(f"Kredit Khusus: {row[7]}")
-                print(f"Kredit Barang: {row[8]}")
-
             data = [
                 {
                     "month": f"{row[0]}-{row[1]}",
@@ -221,14 +371,6 @@ class State(rx.State):
                 }
                 for row in result
             ]
-
-            # Debug: Print formatted data
-            print("\nFormatted data for chart:")
-            for entry in data:
-                print(f"\nMonth: {entry['month']}")
-                for key, value in entry.items():
-                    if key != 'month':
-                        print(f"{key}: {value}")
 
             return data
         

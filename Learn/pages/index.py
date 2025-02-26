@@ -5,6 +5,7 @@ from dateutil.relativedelta import relativedelta  # Impor ditambahkan
 from .. import styles
 from ..templates import template
 from ..components.card import card
+from ..views.acquisition_view import barchart_v2
 from ..views.charts import (
     StatsState,
     area_toggle,
@@ -105,11 +106,12 @@ def index() -> rx.Component:
             # Card kosong untuk visualisasi lain
             card(
                 rx.hstack(
-                    rx.icon("globe", size=20),
-                    rx.text("Other Visualization", size="4", weight="medium"),
+                    rx.icon("chart-bar-big", size=20),
+                    rx.text("Recap Employees", size="4", weight="medium"),
                     align="center",
                     spacing="2",
                 ),
+                barchart_v2(),
             ),
             gap="1rem",
             grid_template_columns=[
