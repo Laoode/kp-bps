@@ -564,6 +564,7 @@ def main_table() -> rx.Component:
                 max_width="225px",
                 width="100%",
                 variant="surface",
+                value=State.search_value,  # Bind value ke state
                 on_change=lambda value: State.filter_values(value),
             ),
             rx.button(
@@ -621,7 +622,10 @@ def main_table() -> rx.Component:
             variant="surface",
             size="3",
             width="100%",
-            on_mount=State.load_entries,
+            on_mount=lambda: [
+                State.reset_table_filters(),  # Reset filters saat komponen dimount
+                State.load_entries(),  # Load entries setelah reset
+            ],
         ),
         _pagination_view(),
     )

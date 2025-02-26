@@ -1161,3 +1161,12 @@ class State(rx.State):
     def last_page(self):
         """Pindah ke halaman terakhir."""
         self.offset = (self.total_pages - 1) * self.limit
+        
+    @rx.event
+    def reset_table_filters(self):
+        """Reset all table filters to default state."""
+        self.search_value = ""
+        self.sort_value = ""
+        self.sort_reverse = False
+        self.offset = 0  # Reset pagination juga
+        self.load_entries()
