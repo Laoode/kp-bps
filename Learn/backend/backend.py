@@ -269,11 +269,146 @@ class State(rx.State):
     # Placeholder functions for download buttons
     @rx.event
     def download_employee_recap(self):
-        pass
+        """Download recap deductions untuk employee yang dipilih."""
+        if not self.selected_employee_id:
+            return rx.toast.error("No employee selected!", position="bottom-right")
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        year = self.current_month.year
+
+        with rx.session() as session:
+            # Get employee name
+            employee = session.exec(
+                select(Employee).where(Employee.id == self.selected_employee_id)
+            ).first()
+
+            if not employee:
+                return rx.toast.error("Employee not found!", position="bottom-right")
+
+            # Write header
+            writer.writerow([f"Recap Deductions Employee by {employee.name} in {year}"])
+            writer.writerow([])  # Empty row
+
+            # Write column headers
+            headers = ["Deductions"] + ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
+                                    "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+            writer.writerow(headers)
+
+            # Get data for each deduction type
+            deduction_types = ["Arisan", "Iuran DW", "Simpanan Wajib Koperasi", 
+                            "Belanja Koperasi", "Simpanan Pokok", "Kredit Khusus", 
+                            "Kredit Barang"]
+
+            query = text("""
+                SELECT 
+                    d.name as deduction_name,
+                    ed.month,
+                    SUM(ed.amount) as amount
+                FROM employee_deductions ed
+                JOIN deductions d ON ed.deduction_id = d.id
+                WHERE ed.employee_id = :employee_id
+                AND ed.year = :year
+                GROUP BY d.name, ed.month
+                ORDER BY d.name, ed.month
+            """)
+
+            result = session.execute(
+                query,
+                {"employee_id": self.selected_employee_id, "year": year}
+            ).fetchall()
+
+            # Convert to dictionary for easier access
+            data_dict = {}
+            for row in result:
+                if row[0] not in data_dict:
+                    data_dict[row[0]] = [0] * 12  # Initialize with zeros
+                data_dict[row[0]][row[1] - 1] = row[2] or 0
+
+            # Write data rows
+            for deduction in deduction_types:
+                row_data = [deduction] + [
+                    f"{amount:,.0f}".replace(",", ".") if amount else ""
+                    for amount in data_dict.get(deduction, [0] * 12)
+                ]
+                writer.writerow(row_data)
+
+        # Get CSV data and generate filename
+        csv_data = output.getvalue()
+        output.close()
+        filename = f"recap_deductions_{employee.name.replace(' ', '_')}_{year}.csv"
+
+        return rx.download(data=csv_data, filename=filename)
 
     @rx.event
     def download_all_recap(self):
-        pass
+        """Download recap deductions untuk semua employee."""
+        output = io.StringIO()
+        writer = csv.writer(output)
+        year = self.current_month.year
+
+        with rx.session() as session:
+            # Get all employees
+            employees = session.exec(select(Employee).order_by(Employee.name)).all()
+
+            for employee in employees:
+                # Write header for each employee
+                writer.writerow([f"Recap Deductions Employee by {employee.name} in {year}"])
+                writer.writerow([])  # Empty row
+
+                # Write column headers
+                headers = ["Deductions"] + ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
+                                        "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+                writer.writerow(headers)
+
+                # Get data for each deduction type
+                query = text("""
+                    SELECT 
+                        d.name as deduction_name,
+                        ed.month,
+                        SUM(ed.amount) as amount
+                    FROM employee_deductions ed
+                    JOIN deductions d ON ed.deduction_id = d.id
+                    WHERE ed.employee_id = :employee_id
+                    AND ed.year = :year
+                    GROUP BY d.name, ed.month
+                    ORDER BY d.name, ed.month
+                """)
+
+                result = session.execute(
+                    query,
+                    {"employee_id": employee.id, "year": year}
+                ).fetchall()
+
+                # Convert to dictionary
+                data_dict = {}
+                for row in result:
+                    if row[0] not in data_dict:
+                        data_dict[row[0]] = [0] * 12
+                    data_dict[row[0]][row[1] - 1] = row[2] or 0
+
+                # Write data rows
+                deduction_types = ["Arisan", "Iuran DW", "Simpanan Wajib Koperasi", 
+                                "Belanja Koperasi", "Simpanan Pokok", "Kredit Khusus", 
+                                "Kredit Barang"]
+                
+                for deduction in deduction_types:
+                    row_data = [deduction] + [
+                        f"{amount:,.0f}".replace(",", ".") if amount else ""
+                        for amount in data_dict.get(deduction, [0] * 12)
+                    ]
+                    writer.writerow(row_data)
+
+                # Add two empty rows between employees
+                writer.writerow([])
+                writer.writerow([])
+
+        # Get CSV data and generate filename
+        csv_data = output.getvalue()
+        output.close()
+        filename = f"recap_all_deductions_{year}.csv"
+
+        return rx.download(data=csv_data, filename=filename)
     
     @rx.event
     def set_timeframe(self, value: str):
