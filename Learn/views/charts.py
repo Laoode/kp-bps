@@ -75,10 +75,11 @@ def _custom_tooltip(color: LiteralAccentColor) -> rx.Component:
     )
 
 def arisan_chart() -> rx.Component:
-    data = State.get_deduction_data_last_12_months
-
+    """Chart visualization for Arisan deductions."""
+    # CHANGED: Use area_chart_data directly instead of get_deduction_data_last_12_months
     return rx.cond(
         StatsState.area_toggle,
+        # Area Chart Version
         rx.recharts.area_chart(
             _create_gradient("lime", "colorLime"),
             _custom_tooltip("lime"),
@@ -101,9 +102,13 @@ def arisan_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            # CHANGED: Use area_chart_data directly
+            data=State.area_chart_data,
             height=425,
+            # ADDED: Add on_mount event to load data
+            on_mount=State.refresh_area_chart,
         ),
+        # Bar Chart Version
         rx.recharts.bar_chart(
             rx.recharts.cartesian_grid(
                 stroke_dasharray="3 3",
@@ -124,14 +129,15 @@ def arisan_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            # CHANGED: Use area_chart_data directly
+            data=State.area_chart_data,
             height=425,
+            # ADDED: Add on_mount event to load data
+            on_mount=State.refresh_area_chart,
         ),
     )
 
 def iuran_dw_chart() -> rx.Component:
-    data = State.get_deduction_data_last_12_months
-
     return rx.cond(
         StatsState.area_toggle,
         rx.recharts.area_chart(
@@ -156,8 +162,9 @@ def iuran_dw_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
         rx.recharts.bar_chart(
             rx.recharts.cartesian_grid(
@@ -179,14 +186,13 @@ def iuran_dw_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
     )
 
 def simpanan_wajib_koperasi_chart() -> rx.Component:
-    data = State.get_deduction_data_last_12_months
-
     return rx.cond(
         StatsState.area_toggle,
         rx.recharts.area_chart(
@@ -211,8 +217,9 @@ def simpanan_wajib_koperasi_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
         rx.recharts.bar_chart(
             rx.recharts.cartesian_grid(
@@ -234,14 +241,13 @@ def simpanan_wajib_koperasi_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
     )
 
 def belanja_koperasi_chart() -> rx.Component:
-    data = State.get_deduction_data_last_12_months
-
     return rx.cond(
         StatsState.area_toggle,
         rx.recharts.area_chart(
@@ -266,8 +272,9 @@ def belanja_koperasi_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
         rx.recharts.bar_chart(
             rx.recharts.cartesian_grid(
@@ -289,14 +296,13 @@ def belanja_koperasi_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
     )
 
 def simpanan_pokok_chart() -> rx.Component:
-    data = State.get_deduction_data_last_12_months
-
     return rx.cond(
         StatsState.area_toggle,
         rx.recharts.area_chart(
@@ -321,8 +327,9 @@ def simpanan_pokok_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
         rx.recharts.bar_chart(
             rx.recharts.cartesian_grid(
@@ -344,14 +351,13 @@ def simpanan_pokok_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
     )
 
 def kredit_khusus_chart() -> rx.Component:
-    data = State.get_deduction_data_last_12_months
-
     return rx.cond(
         StatsState.area_toggle,
         rx.recharts.area_chart(
@@ -376,8 +382,9 @@ def kredit_khusus_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
         rx.recharts.bar_chart(
             rx.recharts.cartesian_grid(
@@ -399,8 +406,9 @@ def kredit_khusus_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
     )
 
@@ -431,8 +439,9 @@ def kredit_barang_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
         rx.recharts.bar_chart(
             rx.recharts.cartesian_grid(
@@ -454,8 +463,9 @@ def kredit_barang_chart() -> rx.Component:
                 width=100,
             ),
             rx.recharts.legend(),
-            data=data,
+            data=State.area_chart_data,
             height=425,
+            on_mount=State.refresh_area_chart,
         ),
     )
 

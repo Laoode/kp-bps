@@ -113,6 +113,9 @@ class State(rx.State):
         "Des": "gold"
     }
     
+    # Tambahkan state variable untuk area chart
+    area_chart_data: List[Dict[str, Any]] = []  
+    
     @rx.var(cache=True)
     def is_nip_valid(self) -> bool:
         """Check if NIP input is not empty."""
@@ -470,9 +473,8 @@ class State(rx.State):
         return self.get_payment_status_data()
 
     
-    @rx.var(cache=True)
-    def get_deduction_data_last_12_months(self) -> List[Dict[str, Any]]:
-        """Mengambil data potongan dari database untuk 12 bulan terakhir."""
+    def _fetch_area_chart_data(self) -> List[Dict[str, Any]]:
+        """Internal function untuk mengambil data area chart."""
         with rx.session() as session:
             current_month = datetime.now().month
             current_year = datetime.now().year
@@ -511,7 +513,7 @@ class State(rx.State):
                 "previous_year": current_year - 1
             }).fetchall()
 
-            data = [
+            return [
                 {
                     "month": f"{row[0]}-{row[1]}",
                     "Arisan": row[2],
@@ -525,7 +527,15 @@ class State(rx.State):
                 for row in result
             ]
 
-            return data
+    @rx.var(cache=True)
+    def get_deduction_data_last_12_months(self) -> List[Dict[str, Any]]:
+        """Get area chart data."""
+        return self.area_chart_data
+        
+    @rx.event
+    def refresh_area_chart(self):
+        """Refresh area chart data."""
+        self.area_chart_data = self._fetch_area_chart_data()
         
     def parse_int(self, value):
         """
@@ -648,6 +658,7 @@ class State(rx.State):
             session.commit()
 
         self.load_entries()
+        self.refresh_area_chart()
         return rx.toast.info("CSV data has been imported successfully.", position="bottom-right")  
 
     def download_table_data(self) -> None:
@@ -921,6 +932,8 @@ class State(rx.State):
             # Update nilai agregat
             self.get_current_month_values()
             self.get_previous_month_values()
+            # Update Chart
+            self.refresh_area_chart()
      
     def get_current_month_values(self):
         """Contoh perhitungan agregat untuk bulan ini."""
@@ -1026,6 +1039,7 @@ class State(rx.State):
                 session.add(ed)
             session.commit()
         self.load_entries()
+        self.refresh_area_chart()
         return rx.toast.info(f"Entry for {employee_name} has been added for {self.formatted_month}.", position="bottom-right")
 
     def update_employee_entry(self, form_data: dict):
@@ -1095,6 +1109,7 @@ class State(rx.State):
                     session.add(new_ed)
             session.commit()
         self.load_entries()
+        self.refresh_area_chart()
         return rx.toast.info(f"Entry for {employee_name} has been updated for {self.formatted_month}.", position="bottom-right")
 
     def delete_employee(self, id: int):
@@ -1104,6 +1119,7 @@ class State(rx.State):
             session.delete(employee)
             session.commit()
         self.load_entries()
+        self.refresh_area_chart()
         return rx.toast.info(f"Entry for {employee.name} has been deleted.", position="bottom-right")
 
     # Contoh perhitungan persentase perubahan (bisa disesuaikan jika diperlukan)
