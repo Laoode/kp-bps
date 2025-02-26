@@ -471,7 +471,12 @@ class State(rx.State):
     def payment_status_data(self) -> list:
         """Data untuk pie chart payment status."""
         return self.get_payment_status_data()
-
+    
+    @rx.event
+    def refresh_pie_chart(self):
+        """Refresh pie chart data."""
+        self.payment_status_data = self.get_payment_status_data()
+        print("Pie chart data refreshed")
     
     def _fetch_area_chart_data(self) -> List[Dict[str, Any]]:
         """Internal function untuk mengambil data area chart."""
@@ -659,6 +664,7 @@ class State(rx.State):
 
         self.load_entries()
         self.refresh_area_chart()
+        self.refresh_pie_chart()
         return rx.toast.info("CSV data has been imported successfully.", position="bottom-right")  
 
     def download_table_data(self) -> None:
@@ -934,6 +940,7 @@ class State(rx.State):
             self.get_previous_month_values()
             # Update Chart
             self.refresh_area_chart()
+            self.refresh_pie_chart()
      
     def get_current_month_values(self):
         """Contoh perhitungan agregat untuk bulan ini."""
@@ -1040,6 +1047,7 @@ class State(rx.State):
             session.commit()
         self.load_entries()
         self.refresh_area_chart()
+        self.refresh_pie_chart()
         return rx.toast.info(f"Entry for {employee_name} has been added for {self.formatted_month}.", position="bottom-right")
 
     def update_employee_entry(self, form_data: dict):
@@ -1110,6 +1118,7 @@ class State(rx.State):
             session.commit()
         self.load_entries()
         self.refresh_area_chart()
+        self.refresh_pie_chart()  
         return rx.toast.info(f"Entry for {employee_name} has been updated for {self.formatted_month}.", position="bottom-right")
 
     def delete_employee(self, id: int):
@@ -1120,6 +1129,7 @@ class State(rx.State):
             session.commit()
         self.load_entries()
         self.refresh_area_chart()
+        self.refresh_pie_chart()
         return rx.toast.info(f"Entry for {employee.name} has been deleted.", position="bottom-right")
 
     # Contoh perhitungan persentase perubahan (bisa disesuaikan jika diperlukan)

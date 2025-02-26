@@ -496,4 +496,6 @@ def pie_chart() -> rx.Component:
         rx.recharts.legend(),
         width="100%",
         height=300,
+        # Add on_mount event
+        on_mount=State.refresh_pie_chart,
     )
