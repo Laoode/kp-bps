@@ -98,6 +98,20 @@ class State(rx.State):
     current_page_month: int = 1  # 1 untuk Jan-Jun, 2 untuk Jul-Dec
     nip_input: str = ""  # Untuk input NIP
     monthly_data: List[Dict[str, Any]] = []
+    MONTH_COLORS = {
+        "Jan": "sky",
+        "Feb": "blue",
+        "Mar": "indigo",
+        "Apr": "violet",
+        "Mei": "purple",
+        "Jun": "plum",
+        "Jul": "pink",
+        "Aug": "red",
+        "Sep": "crimson",
+        "Okt": "orange",
+        "Nov": "amber",
+        "Des": "gold"
+    }
     
     @rx.var(cache=True)
     def is_nip_valid(self) -> bool:
@@ -193,13 +207,17 @@ class State(rx.State):
 
             data_dict = {row[0]: row[1] for row in result}
             
-            return [
-                {
-                    "month": self.month_name(month),
-                    "amount": data_dict.get(month, 0)
-                }
-                for month in range(start_month, end_month + 1)
-            ]
+            # Perbaiki cara pembuatan data
+            formatted_data = []
+            for month in range(start_month, end_month + 1):
+                month_name = self.month_name(month)
+                formatted_data.append({
+                    "month": month_name,
+                    "amount": data_dict.get(month, 0),
+                    "fill": rx.color(self.MONTH_COLORS.get(month_name, "gray"), 9)
+                })
+            
+            return formatted_data
 
     @rx.event
     def set_selected_deduction(self, value: str):

@@ -117,7 +117,8 @@ def barchart_v2()-> rx.Component:
                 rx.recharts.graphing_tooltip(**vars(tooltip_styles)),
                 rx.recharts.bar(
                     data_key="amount",
-                    fill=ComponentWrapperState.default_theme[0],
+                    # fill=ComponentWrapperState.default_theme[0],
+                    fill="fill",
                     radius=6,
                 ),
                 rx.recharts.x_axis(type_="number", hide=True, tick_size=0),
