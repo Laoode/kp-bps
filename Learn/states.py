@@ -115,34 +115,6 @@ class Authentication(LoginState):
             except Exception as e:
                 print("Error saat parsing session:", e)
                 pass
-        # Jika tidak ada session atau session sudah kedaluwarsa, jangan melakukan redirect
-        
-    # def check_auth(self):
-    #     """Cek autentikasi sebelum mengakses halaman utama"""
-    #     if not self.user_session:
-    #         return rx.redirect("/login")
-        
-    #     try:
-    #         session_data = json.loads(self.user_session)
-    #         expires_at = datetime.fromisoformat(session_data["expires_at"])
-    #         if datetime.now() > expires_at:
-    #             return rx.redirect("/login")
-    #     except:
-    #         return rx.redirect("/")
-
-    # def check_auth(self):
-    #     """Redirect ke home hanya jika session valid"""
-    #     if not self.user_session:
-    #         return  # Biarkan tetap di halaman login
-        
-    #     try:
-    #         # Cek apakah session masih berlaku
-    #         session_data = json.loads(self.user_session)
-    #         expires_at = datetime.fromisoformat(session_data["expires_at"])
-    #         if datetime.now() <= expires_at:
-    #             return rx.redirect("/")
-    #     except:
-    #         pass  # Jika ada error, tetap di halaman login
 
     def require_auth(self):
         """Memastikan bahwa pengguna harus login untuk mengakses halaman tertentu.
@@ -165,6 +137,3 @@ class Authentication(LoginState):
         self.user_id = ""
         self.user_email = ""
         return rx.redirect("/login")
-    
-
-        

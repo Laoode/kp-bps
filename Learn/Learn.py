@@ -49,12 +49,8 @@ def table_page() -> rx.Component:
     )
 
 def admin_page() -> rx.Component:
-    return rx.vstack(
-        rx.heading("Admin Page", size="3"),
-        width="100%",
-        spacing="6",
-        padding_x=["1.5em", "1.5em", "3em"],
-    )
+    from .pages.admin import admin_dashboard
+    return admin_dashboard()
 
 app = rx.App(
     theme=rx.theme(
