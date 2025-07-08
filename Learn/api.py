@@ -14,7 +14,8 @@ PUBLIC_KEY: str = os.environ["SUPABASE_KEY"]
 
 # first API endpoint: user login...
 async def user_login_endpoint(email:str, password: str):
-    url = "https://acsyvbepkaxpmeupvfxl.supabase.co/auth/v1/token?grant_type=password"
+    # url = "https://acsyvbepkaxpmeupvfxl.supabase.co/auth/v1/token?grant_type=password"
+    url = f"{PUBLIC_URL}/auth/v1/token?grant_type=password"
     
     #headers
     headers = {
@@ -48,7 +49,8 @@ async def user_login_endpoint(email:str, password: str):
 # second API endpoint: user registration
 
 async def is_invitation_code_valid(code: str):
-    url = f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/invitation_codes?code=eq.{code}&select=*"
+    # url = f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/invitation_codes?code=eq.{code}&select=*"
+    url = f"{PUBLIC_URL}/rest/v1/invitation_codes?code=eq.{code}&select=*"
     
     headers = {
         "apikey": PUBLIC_KEY,
@@ -70,7 +72,8 @@ async def is_invitation_code_valid(code: str):
 
 
 async def mark_code_used(code: str, user_id: str):
-    url = f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/invitation_codes?code=eq.{code}"
+    # url = f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/invitation_codes?code=eq.{code}"
+    url = f"{PUBLIC_URL}/rest/v1/invitation_codes?code=eq.{code}"
     
     headers = {
         "apikey": PUBLIC_KEY,
@@ -92,7 +95,8 @@ async def resend_confirmation_email(email: str):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "https://acsyvbepkaxpmeupvfxl.supabase.co/auth/v1/recover",
+                # "https://acsyvbepkaxpmeupvfxl.supabase.co/auth/v1/recover",
+                f"{PUBLIC_URL}/auth/v1/recover",
                 headers={
                     "apikey": PUBLIC_KEY,
                     "Content-Type": "application/json"
@@ -120,7 +124,8 @@ async def user_registration_endpoint(
         if not await is_invitation_code_valid(invitation_code):
             return "Invalid or expired invitation code!"
 
-        url = "https://acsyvbepkaxpmeupvfxl.supabase.co/auth/v1/signup"
+        # url = "https://acsyvbepkaxpmeupvfxl.supabase.co/auth/v1/signup"
+        url = f"{PUBLIC_URL}/auth/v1/signup"
         
         #headers & data
         headers = {
@@ -149,7 +154,8 @@ async def user_registration_endpoint(
             
             # Update role berdasarkan kode undangan
             await client.patch(
-                url=f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/profiles?id=eq.{user_id}",
+                # url=f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/profiles?id=eq.{user_id}",
+                url=f"{PUBLIC_URL}/rest/v1/profiles?id=eq.{user_id}",
                 headers=headers,
                 json={"role": "employee"}
             )
@@ -171,7 +177,8 @@ async def user_registration_endpoint(
         return f"Error: {str(e)}"
 
 async def get_user_role(user_id: str):
-    url = f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/profiles?id=eq.{user_id}"
+    # url = f"https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/profiles?id=eq.{user_id}"
+    url = f"{PUBLIC_URL}/rest/v1/profiles?id=eq.{user_id}"
     
     headers = {
         "apikey": PUBLIC_KEY,
@@ -203,7 +210,8 @@ async def generate_invitation_code(role: str, expiry_days: int = 7):
     code = str(uuid.uuid4())[:8].upper()  # Generate 8 karakter
     expired_at = datetime.now() + timedelta(days=expiry_days)
     
-    url = "https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/invitation_codes"
+    # url = "https://acsyvbepkaxpmeupvfxl.supabase.co/rest/v1/invitation_codes"
+    url = f"{PUBLIC_URL}/rest/v1/invitation_codes"
     
     headers = {
         "apikey": PUBLIC_KEY,
